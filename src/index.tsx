@@ -2,6 +2,7 @@ import { createCliRenderer, SyntaxStyle, RGBA } from "@opentui/core";
 import { createRoot, useKeyboard } from "@opentui/react";
 import { NexHealthClient, NexHealthAPIError } from "nexhealth-js-sdk";
 import { useState, useCallback, useEffect } from "react";
+import { QUERY_PARAMS, getKeyPrefix, insertSuggestion } from "./params.js";
 
 const JSON_SYNTAX_STYLE = SyntaxStyle.fromStyles({
   string:  { fg: RGBA.fromHex("#9ece6a") },
@@ -153,12 +154,24 @@ function ExplorerScreen({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [paramKey, setParamKey] = useState(0);
+  const [acIdx, setAcIdx] = useState(0);
+  const [queryInputKey, setQueryInputKey] = useState(0);
 
   const selectedEndpoint = ENDPOINT_NAMES[endpointIdx] ?? "appointments";
   const methods = ENDPOINTS[selectedEndpoint] ?? [];
   const selectedMethod = methods[methodIdx] ?? "";
   const needsId = NEEDS_ID.has(selectedMethod);
   const hasBody = HAS_BODY.has(selectedMethod);
+
+  // Autocomplete: compute suggestions from the current query input value
+  const keyPrefix = focus === "query" ? getKeyPrefix(queryParam) : null;
+  const allQueryKeys = QUERY_PARAMS[selectedEndpoint]?.[selectedMethod] ?? [];
+  const suggestions = keyPrefix !== null
+    ? allQueryKeys.filter((k) => k.startsWith(keyPrefix))
+    : [];
+  const showAutocomplete = suggestions.length > 0;
+
+  useEffect(() => { setAcIdx(0); }, [keyPrefix]);
 
   // Reset params when endpoint or method changes
   useEffect(() => {
@@ -246,7 +259,28 @@ function ExplorerScreen({
       }
       return;
     }
-    if (key.name === "tab") advanceFocus();
+
+    if (key.name === "tab") {
+      if (focus === "query" && showAutocomplete) {
+        // Accept the highlighted suggestion instead of switching panels
+        const chosen = suggestions[acIdx];
+        if (chosen) {
+          const next = insertSuggestion(queryParam, chosen);
+          setQueryParam(next);
+          setQueryInputKey((k: number) => k + 1);
+          setAcIdx(0);
+        }
+      } else {
+        advanceFocus();
+      }
+      return;
+    }
+
+    if (focus === "query" && showAutocomplete) {
+      if (key.name === "up")   { setAcIdx((i: number) => Math.max(0, i - 1)); return; }
+      if (key.name === "down") { setAcIdx((i: number) => Math.min(suggestions.length - 1, i + 1)); return; }
+    }
+
     if (key.ctrl && key.name === "r") runCall();
     if (key.ctrl && key.name === "s") {
       setSubdomainDraft(subdomain);
@@ -395,15 +429,18 @@ function ExplorerScreen({
               </>
             )}
 
-            <text fg={focus === "query" ? "#7aa2f7" : "#565f89"}>Query Params (JSON)</text>
+            <text fg={focus === "query" ? "#7aa2f7" : "#565f89"}>
+              Query Params (JSON){showAutocomplete && focus === "query" ? "  [↑↓] navigate  [Tab] accept" : ""}
+            </text>
             <box
               border
               borderStyle="single"
               borderColor={focus === "query" ? "#7aa2f7" : "#414868"}
-              style={{ height: 3, marginBottom: 1 }}
+              style={{ height: 3 }}
             >
               <input
-                key={`query-${paramKey}`}
+                key={`query-${paramKey}-${queryInputKey}`}
+                value={queryParam}
                 placeholder='{ "location_id": 123 }'
                 focused={focus === "query"}
                 onInput={setQueryParam}
@@ -413,6 +450,29 @@ function ExplorerScreen({
                 }}
               />
             </box>
+
+            {/* Autocomplete suggestions */}
+            {showAutocomplete && focus === "query" && (
+              <box
+                border
+                borderStyle="single"
+                borderColor="#7aa2f7"
+                style={{ height: Math.min(suggestions.length, 6) + 2, marginBottom: 1 }}
+              >
+                <select
+                  focused={false}
+                  options={suggestions.map((s) => ({ name: s, description: "", value: s }))}
+                  selectedIndex={acIdx}
+                  showDescription={false}
+                  selectedBackgroundColor="#283457"
+                  selectedTextColor="#7aa2f7"
+                  textColor="#a9b1d6"
+                  style={{ flexGrow: 1 }}
+                />
+              </box>
+            )}
+
+            {!showAutocomplete && <box style={{ height: 1, marginBottom: 1 }} />}
 
             {hasBody && (
               <>
