@@ -1,7 +1,7 @@
 import { createCliRenderer, SyntaxStyle, RGBA, type CliRenderer } from "@opentui/core";
 import { createRoot, useKeyboard } from "@opentui/react";
 import { NexHealthClient, NexHealthAPIError } from "nexhealth-js-sdk";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { QUERY_PARAMS, getKeyPrefix, insertSuggestion } from "./params.js";
 import { loadConfig, saveConfig, clearConfig } from "./config.js";
 import { spawnSync } from "child_process";
@@ -165,6 +165,7 @@ function ExplorerScreen({
   const [paramKey, setParamKey] = useState(0);
   const [acIdx, setAcIdx] = useState(0);
   const [queryInputKey, setQueryInputKey] = useState(0);
+  const resultCache = useRef<Record<string, string>>({});
 
   const selectedEndpoint = ENDPOINT_NAMES[endpointIdx] ?? "appointments";
   const methods = ENDPOINTS[selectedEndpoint] ?? [];
@@ -189,6 +190,12 @@ function ExplorerScreen({
     setBodyParam("");
     setParamKey((k: number) => k + 1);
   }, [selectedEndpoint, selectedMethod]);
+
+  // Restore cached result when endpoint changes
+  useEffect(() => {
+    setResult(resultCache.current[selectedEndpoint] ?? null);
+    setError(null);
+  }, [selectedEndpoint]);
 
   const focusCycle: FocusArea[] = ["endpoints", "methods"];
   if (needsId) focusCycle.push("id");
@@ -247,7 +254,9 @@ function ExplorerScreen({
         default: throw new Error(`Unknown method: ${selectedMethod}`);
       }
 
-      setResult(JSON.stringify(resp, null, 2));
+      const json = JSON.stringify(resp, null, 2);
+      resultCache.current[selectedEndpoint] = json;
+      setResult(json);
     } catch (err) {
       if (err instanceof NexHealthAPIError) {
         const lines = [`HTTP ${err.status}: ${err.message}`, ...(err.errors ?? [])];
