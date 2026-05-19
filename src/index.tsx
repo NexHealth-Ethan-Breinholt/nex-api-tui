@@ -3,6 +3,7 @@ import { createRoot, useKeyboard } from "@opentui/react";
 import { NexHealthClient, NexHealthAPIError } from "nexhealth-js-sdk";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { QUERY_PARAMS, V2024_ENDPOINTS, V2024_QUERY_PARAMS, getKeyPrefix, insertSuggestion } from "./params.js";
+import { ToolsScreen } from "./tools.js";
 import { loadConfig, saveConfig, clearConfig } from "./config.js";
 import { spawnSync } from "child_process";
 import { writeFileSync, unlinkSync } from "fs";
@@ -95,7 +96,9 @@ function ConfigScreen({ onStart }: { onStart: (apiKey: string, subdomain: string
 
   useKeyboard((key) => {
     if (key.name === "tab") {
-      setFocused((prev: "apiKey" | "subdomain") => (prev === "apiKey" ? "subdomain" : "apiKey"));
+      setFocused((prev: "apiKey" | "subdomain") => key.shift
+        ? (prev === "subdomain" ? "apiKey" : "subdomain")
+        : (prev === "apiKey" ? "subdomain" : "apiKey"));
     }
   });
 
@@ -168,11 +171,13 @@ function ExplorerScreen({
   subdomain,
   onSubdomainChange,
   onLogout,
+  onSwitchToTools,
 }: {
   apiKey: string;
   subdomain: string;
   onSubdomainChange: (sub: string) => void;
   onLogout: () => void;
+  onSwitchToTools: () => void;
 }) {
   const [apiVersion, setApiVersion] = useState<ApiVersion>("v2");
   const [endpointIdx, setEndpointIdx] = useState(0);
@@ -251,6 +256,13 @@ function ExplorerScreen({
     setFocus((current: FocusArea) => {
       const idx = focusCycle.indexOf(current);
       return focusCycle[(idx + 1) % focusCycle.length] ?? "endpoints";
+    });
+  }, [focusCycle]);
+
+  const retreatFocus = useCallback(() => {
+    setFocus((current: FocusArea) => {
+      const idx = focusCycle.indexOf(current);
+      return focusCycle[(idx - 1 + focusCycle.length) % focusCycle.length] ?? "endpoints";
     });
   }, [focusCycle]);
 
@@ -353,7 +365,7 @@ function ExplorerScreen({
     }
 
     if (key.name === "tab") {
-      if (focus === "query" && showAutocomplete) {
+      if (!key.shift && focus === "query" && showAutocomplete) {
         // Accept the highlighted suggestion instead of switching panels
         const chosen = suggestions[acIdx];
         if (chosen) {
@@ -363,7 +375,7 @@ function ExplorerScreen({
           setAcIdx(0);
         }
       } else {
-        advanceFocus();
+        key.shift ? retreatFocus() : advanceFocus();
       }
       return;
     }
@@ -395,6 +407,7 @@ function ExplorerScreen({
 
     if (key.ctrl && key.name === "r") runCall();
     if (key.ctrl && key.name === "l") { onLogout(); return; }
+    if (key.ctrl && key.name === "t") { onSwitchToTools(); return; }
     if (key.ctrl && key.name === "s") {
       setSubdomainDraft(subdomain);
       setEditingSubdomain(true);
@@ -457,7 +470,7 @@ function ExplorerScreen({
         <text fg="#565f89">
           {editingSubdomain
             ? "[Enter] save  [Esc] cancel"
-            : "[Tab] panels  [←→] version  [Ctrl+R] run  [Ctrl+S] subdomain  [Ctrl+C] quit"}
+            : "[Tab] panels  [←→] version  [Ctrl+R] run  [Ctrl+S] subdomain  [Ctrl+T] tools  [Ctrl+C] quit"}
         </text>
       </box>
 
@@ -686,7 +699,7 @@ function ExplorerScreen({
 
 function App() {
   const saved = loadConfig();
-  const [screen, setScreen] = useState<"config" | "main">(saved ? "main" : "config");
+  const [screen, setScreen] = useState<"config" | "explorer" | "tools">(saved ? "explorer" : "config");
   const [apiKey, setApiKey] = useState(saved?.apiKey ?? "");
   const [subdomain, setSubdomain] = useState(saved?.subdomain ?? "");
 
@@ -694,7 +707,7 @@ function App() {
     saveConfig({ apiKey: key, subdomain: sub });
     setApiKey(key);
     setSubdomain(sub);
-    setScreen("main");
+    setScreen("explorer");
   }, []);
 
   const handleLogout = useCallback(() => {
@@ -704,9 +717,9 @@ function App() {
     setScreen("config");
   }, []);
 
-  return screen === "config"
-    ? <ConfigScreen onStart={handleStart} />
-    : <ExplorerScreen apiKey={apiKey} subdomain={subdomain} onSubdomainChange={setSubdomain} onLogout={handleLogout} />;
+  if (screen === "config")    return <ConfigScreen onStart={handleStart} />;
+  if (screen === "tools")     return <ToolsScreen apiKey={apiKey} subdomain={subdomain} onSwitchToExplorer={() => setScreen("explorer")} />;
+  return <ExplorerScreen apiKey={apiKey} subdomain={subdomain} onSubdomainChange={setSubdomain} onLogout={handleLogout} onSwitchToTools={() => setScreen("tools")} />;
 }
 
 cliRenderer = await createCliRenderer({ exitOnCtrlC: true });
