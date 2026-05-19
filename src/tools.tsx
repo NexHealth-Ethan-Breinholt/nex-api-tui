@@ -1,4 +1,4 @@
-import { JSON_SYNTAX_STYLE } from "./theme.js";
+import { JSON_SYNTAX_STYLE, THEME } from "./theme.js";
 import { useKeyboard } from "@opentui/react";
 import { NexHealthClient, NexHealthAPIError } from "nexhealth-js-sdk";
 import React, { useState, useCallback, useMemo } from "react";
@@ -46,7 +46,7 @@ function parsePositiveInt(s: string): number | undefined {
 }
 
 function ib(active: boolean): string {  // input border color
-  return active ? "#7aa2f7" : "#414868";
+  return active ? THEME.accent : THEME.dim;
 }
 
 // ─── Focus cycle ──────────────────────────────────────────────────────────────
@@ -273,7 +273,7 @@ export function BookAppointmentTool({ apiKey, subdomain, onBackToList, active }:
     placeholder: string; onInput: (v: string) => void; onSubmit: () => void; fg?: string;
   }) => (
     <box flexDirection="column" style={{ ...(width ? { width, flexShrink: 0 } : { flexGrow: 1 }) }}>
-      <text fg={focused ? "#7aa2f7" : (fg ?? "#565f89")}>{label}</text>
+      <text fg={focused ? THEME.accent : (fg ?? THEME.muted)}>{label}</text>
       <box border borderStyle="single" borderColor={ib(focused)} style={{ height: 3 }}>
         <input
           key={`${label}-${inputKey}`}
@@ -294,7 +294,7 @@ export function BookAppointmentTool({ apiKey, subdomain, onBackToList, active }:
       <box
         title=" Required "
         border borderStyle="single"
-        borderColor={inRequired ? "#7aa2f7" : "#414868"}
+        borderColor={inRequired ? THEME.accent : THEME.dim}
         flexDirection="row"
         style={{ flexShrink: 0, gap: 1, paddingLeft: 1, paddingRight: 1 }}
       >
@@ -304,8 +304,8 @@ export function BookAppointmentTool({ apiKey, subdomain, onBackToList, active }:
         <Field label="Start Time"   width={12} value={startTime}   focused={activeFocus === "time"}      placeholder="HH:MM"      onInput={setStartTime}   onSubmit={() => nextFocus("duration")} />
         <Field label="Dur (min)"    width={9}  value={durationStr} focused={activeFocus === "duration"}  placeholder="60"         onInput={setDurationStr} onSubmit={() => nextFocus("note")} />
         <box flexDirection="column" justifyContent="flex-end" style={{ paddingBottom: 1, flexShrink: 0 }}>
-          <text fg="#565f89">→ </text>
-          <text fg={endTime ? "#9ece6a" : "#414868"}>{endTime || "--:--"}</text>
+          <text fg={THEME.muted}>→ </text>
+          <text fg={endTime ? THEME.success : THEME.dim}>{endTime || "--:--"}</text>
         </box>
       </box>
 
@@ -313,26 +313,26 @@ export function BookAppointmentTool({ apiKey, subdomain, onBackToList, active }:
       <box
         title=" Optional "
         border borderStyle="single"
-        borderColor={inOptional ? "#7aa2f7" : "#414868"}
+        borderColor={inOptional ? THEME.accent : THEME.dim}
         flexDirection="row"
         style={{ flexShrink: 0, gap: 1, paddingLeft: 1, paddingRight: 1 }}
       >
-        <Field label="Note"          value={note}          focused={activeFocus === "note"}          placeholder="Appointment note…" onInput={setNote}          onSubmit={() => nextFocus("referrer")}      fg="#565f89" />
-        <Field label="Referrer"      width={13} value={referrer}      focused={activeFocus === "referrer"}      placeholder="referrer"         onInput={setReferrer}      onSubmit={() => nextFocus("descriptorIds")} fg="#565f89" />
-        <Field label="Descriptor IDs" width={16} value={descriptorIds} focused={activeFocus === "descriptorIds"} placeholder="1,2,3"            onInput={setDescriptorIds} onSubmit={() => nextFocus("apptPerSlot")}   fg="#565f89" />
-        <Field label="Appts/Slot"    width={10} value={apptPerSlot}  focused={activeFocus === "apptPerSlot"}  placeholder="1"                onInput={setApptPerSlot}  onSubmit={() => nextFocus("notifyPatient")} fg="#565f89" />
-        <Field label="Notify Pt"     width={9}  value={notifyPatient}  focused={activeFocus === "notifyPatient"}  placeholder="t/f" onInput={setNotifyPatient}  onSubmit={() => nextFocus("notifyPractice")} fg="#565f89" />
-        <Field label="Notify Pr"     width={9}  value={notifyPractice} focused={activeFocus === "notifyPractice"} placeholder="t/f" onInput={setNotifyPractice} onSubmit={() => nextFocus("unavailable")}    fg="#565f89" />
-        <Field label="Unavail"       width={8}  value={unavailable}    focused={activeFocus === "unavailable"}    placeholder="t/f" onInput={setUnavailable}    onSubmit={() => nextFocus("isGuardian")}     fg="#565f89" />
-        <Field label="Guardian"      width={9}  value={isGuardian}     focused={activeFocus === "isGuardian"}     placeholder="t/f" onInput={setIsGuardian}     onSubmit={() => nextFocus("isNewClient")}    fg="#565f89" />
-        <Field label="New Client"    width={10} value={isNewClient}    focused={activeFocus === "isNewClient"}    placeholder="t/f" onInput={setIsNewClient}    onSubmit={() => nextFocus("providers")}      fg="#565f89" />
+        <Field label="Note"          value={note}          focused={activeFocus === "note"}          placeholder="Appointment note…" onInput={setNote}          onSubmit={() => nextFocus("referrer")}      fg={THEME.muted} />
+        <Field label="Referrer"      width={13} value={referrer}      focused={activeFocus === "referrer"}      placeholder="referrer"         onInput={setReferrer}      onSubmit={() => nextFocus("descriptorIds")} fg={THEME.muted} />
+        <Field label="Descriptor IDs" width={16} value={descriptorIds} focused={activeFocus === "descriptorIds"} placeholder="1,2,3"            onInput={setDescriptorIds} onSubmit={() => nextFocus("apptPerSlot")}   fg={THEME.muted} />
+        <Field label="Appts/Slot"    width={10} value={apptPerSlot}  focused={activeFocus === "apptPerSlot"}  placeholder="1"                onInput={setApptPerSlot}  onSubmit={() => nextFocus("notifyPatient")} fg={THEME.muted} />
+        <Field label="Notify Pt"     width={9}  value={notifyPatient}  focused={activeFocus === "notifyPatient"}  placeholder="t/f" onInput={setNotifyPatient}  onSubmit={() => nextFocus("notifyPractice")} fg={THEME.muted} />
+        <Field label="Notify Pr"     width={9}  value={notifyPractice} focused={activeFocus === "notifyPractice"} placeholder="t/f" onInput={setNotifyPractice} onSubmit={() => nextFocus("unavailable")}    fg={THEME.muted} />
+        <Field label="Unavail"       width={8}  value={unavailable}    focused={activeFocus === "unavailable"}    placeholder="t/f" onInput={setUnavailable}    onSubmit={() => nextFocus("isGuardian")}     fg={THEME.muted} />
+        <Field label="Guardian"      width={9}  value={isGuardian}     focused={activeFocus === "isGuardian"}     placeholder="t/f" onInput={setIsGuardian}     onSubmit={() => nextFocus("isNewClient")}    fg={THEME.muted} />
+        <Field label="New Client"    width={10} value={isNewClient}    focused={activeFocus === "isNewClient"}    placeholder="t/f" onInput={setIsNewClient}    onSubmit={() => nextFocus("providers")}      fg={THEME.muted} />
       </box>
 
       {/* ── Selector columns ─────────────────────────────────────────── */}
       <box flexDirection="row" flexGrow={1}>
 
         <box title=" Providers " border borderStyle="single"
-          borderColor={activeFocus === "providers" ? "#7aa2f7" : "#414868"}
+          borderColor={activeFocus === "providers" ? THEME.accent : THEME.dim}
           style={{ flexGrow: 1 }}
         >
           <select
@@ -343,18 +343,18 @@ export function BookAppointmentTool({ apiKey, subdomain, onBackToList, active }:
             showScrollIndicator
             wrapSelection={false}
             onChange={(idx) => setProviderIdx(idx)}
-            textColor="#a9b1d6"
-            focusedBackgroundColor="#1a1b26"
-            selectedBackgroundColor="#283457"
-            selectedTextColor="#7aa2f7"
-            descriptionColor="#565f89"
-            selectedDescriptionColor="#7aa2f7"
+            textColor={THEME.text}
+            focusedBackgroundColor={THEME.listFocusedBg}
+            selectedBackgroundColor={THEME.listSelectedBg}
+            selectedTextColor={THEME.accent}
+            descriptionColor={THEME.muted}
+            selectedDescriptionColor={THEME.accent}
             style={{ flexGrow: 1 }}
           />
         </box>
 
         <box title=" Operatories " border borderStyle="single"
-          borderColor={activeFocus === "operatories" ? "#7aa2f7" : "#414868"}
+          borderColor={activeFocus === "operatories" ? THEME.accent : THEME.dim}
           style={{ flexGrow: 1 }}
         >
           <select
@@ -365,18 +365,18 @@ export function BookAppointmentTool({ apiKey, subdomain, onBackToList, active }:
             showScrollIndicator
             wrapSelection={false}
             onChange={(idx) => setOperatoryIdx(idx)}
-            textColor="#a9b1d6"
-            focusedBackgroundColor="#1a1b26"
-            selectedBackgroundColor="#283457"
-            selectedTextColor="#7aa2f7"
-            descriptionColor="#565f89"
-            selectedDescriptionColor="#7aa2f7"
+            textColor={THEME.text}
+            focusedBackgroundColor={THEME.listFocusedBg}
+            selectedBackgroundColor={THEME.listSelectedBg}
+            selectedTextColor={THEME.accent}
+            descriptionColor={THEME.muted}
+            selectedDescriptionColor={THEME.accent}
             style={{ flexGrow: 1 }}
           />
         </box>
 
         <box title=" Appt Types " border borderStyle="single"
-          borderColor={activeFocus === "apptTypes" ? "#7aa2f7" : "#414868"}
+          borderColor={activeFocus === "apptTypes" ? THEME.accent : THEME.dim}
           style={{ flexGrow: 1 }}
         >
           <select
@@ -387,12 +387,12 @@ export function BookAppointmentTool({ apiKey, subdomain, onBackToList, active }:
             showScrollIndicator
             wrapSelection={false}
             onChange={(idx) => setApptTypeIdx(idx)}
-            textColor="#a9b1d6"
-            focusedBackgroundColor="#1a1b26"
-            selectedBackgroundColor="#283457"
-            selectedTextColor="#7aa2f7"
-            descriptionColor="#565f89"
-            selectedDescriptionColor="#7aa2f7"
+            textColor={THEME.text}
+            focusedBackgroundColor={THEME.listFocusedBg}
+            selectedBackgroundColor={THEME.listSelectedBg}
+            selectedTextColor={THEME.accent}
+            descriptionColor={THEME.muted}
+            selectedDescriptionColor={THEME.accent}
             style={{ flexGrow: 1 }}
           />
         </box>
@@ -410,16 +410,16 @@ export function BookAppointmentTool({ apiKey, subdomain, onBackToList, active }:
                          " Result "
         }
         border borderStyle="single"
-        borderColor={error || fetchError ? "#f7768e" : result ? "#9ece6a" : "#414868"}
+        borderColor={error || fetchError ? THEME.error : result ? THEME.success : THEME.dim}
         style={{ height: 18, flexShrink: 0 }}
       >
         <scrollbox focused={false} style={{ flexGrow: 1 }}>
-          {(loading || fetchLoading) && <text fg="#565f89">Working…</text>}
-          {!loading && !fetchLoading && fetchError && <text fg="#f7768e">{fetchError}</text>}
-          {!loading && !fetchLoading && error       && <text fg="#f7768e">{error}</text>}
+          {(loading || fetchLoading) && <text fg={THEME.muted}>Working…</text>}
+          {!loading && !fetchLoading && fetchError && <text fg={THEME.error}>{fetchError}</text>}
+          {!loading && !fetchLoading && error       && <text fg={THEME.error}>{error}</text>}
           {!loading && !fetchLoading && result      && <code content={result} filetype="javascript" syntaxStyle={JSON_SYNTAX_STYLE} />}
           {!loading && !fetchLoading && !result && !error && !fetchError && (
-            <text fg="#414868">Fill params · [Ctrl+L] fetch lists · [Ctrl+R] book · booleans: t/f/true/false</text>
+            <text fg={THEME.dim}>Fill params · [Ctrl+L] fetch lists · [Ctrl+R] book · booleans: t/f/true/false</text>
           )}
         </scrollbox>
       </box>
@@ -612,7 +612,7 @@ export function AvailableSlotsTool({ apiKey, subdomain, onBackToList, active }: 
     placeholder: string; onInput: (v: string) => void; onSubmit: () => void; fg?: string;
   }) => (
     <box flexDirection="column" style={{ ...(width ? { width, flexShrink: 0 } : { flexGrow: 1 }) }}>
-      <text fg={focused ? "#7aa2f7" : (fg ?? "#565f89")}>{label}</text>
+      <text fg={focused ? THEME.accent : (fg ?? THEME.muted)}>{label}</text>
       <box border borderStyle="single" borderColor={ib(focused)} style={{ height: 3 }}>
         <input
           key={`slots-${label}-${inputKey}`}
@@ -633,7 +633,7 @@ export function AvailableSlotsTool({ apiKey, subdomain, onBackToList, active }: 
       <box
         title=" Required "
         border borderStyle="single"
-        borderColor={inRequired ? "#7aa2f7" : "#414868"}
+        borderColor={inRequired ? THEME.accent : THEME.dim}
         flexDirection="row"
         style={{ flexShrink: 0, gap: 1, paddingLeft: 1, paddingRight: 1 }}
       >
@@ -646,23 +646,23 @@ export function AvailableSlotsTool({ apiKey, subdomain, onBackToList, active }: 
       <box
         title=" Optional "
         border borderStyle="single"
-        borderColor={inOptional ? "#7aa2f7" : "#414868"}
+        borderColor={inOptional ? THEME.accent : THEME.dim}
         flexDirection="row"
         style={{ flexShrink: 0, gap: 1, paddingLeft: 1, paddingRight: 1 }}
       >
-        <Field label="Slot Length"   width={13} value={slotLength}   focused={activeFocus === "slotLength"}   placeholder="30"     onInput={setSlotLength}   onSubmit={() => nextFocus("slotInterval")} fg="#565f89" />
-        <Field label="Slot Interval" width={14} value={slotInterval}  focused={activeFocus === "slotInterval"}  placeholder="15"     onInput={setSlotInterval}  onSubmit={() => nextFocus("overlapping")}  fg="#565f89" />
-        <Field label="Overlapping"   width={12} value={overlapping}   focused={activeFocus === "overlapping"}   placeholder="t/f"    onInput={setOverlapping}   onSubmit={() => nextFocus("apptPerSlot")}  fg="#565f89" />
-        <Field label="Appts/Slot"    width={11} value={apptPerSlot}   focused={activeFocus === "apptPerSlot"}   placeholder="1"      onInput={setApptPerSlot}   onSubmit={() => nextFocus("whLabelId")}    fg="#565f89" />
-        <Field label="WH Label ID"   width={13} value={whLabelId}     focused={activeFocus === "whLabelId"}     placeholder="123"    onInput={setWhLabelId}     onSubmit={() => nextFocus("whSource")}     fg="#565f89" />
-        <Field label="WH Source"                value={whSource}      focused={activeFocus === "whSource"}      placeholder="source" onInput={setWhSource}      onSubmit={() => nextFocus("providers")}    fg="#565f89" />
+        <Field label="Slot Length"   width={13} value={slotLength}   focused={activeFocus === "slotLength"}   placeholder="30"     onInput={setSlotLength}   onSubmit={() => nextFocus("slotInterval")} fg={THEME.muted} />
+        <Field label="Slot Interval" width={14} value={slotInterval}  focused={activeFocus === "slotInterval"}  placeholder="15"     onInput={setSlotInterval}  onSubmit={() => nextFocus("overlapping")}  fg={THEME.muted} />
+        <Field label="Overlapping"   width={12} value={overlapping}   focused={activeFocus === "overlapping"}   placeholder="t/f"    onInput={setOverlapping}   onSubmit={() => nextFocus("apptPerSlot")}  fg={THEME.muted} />
+        <Field label="Appts/Slot"    width={11} value={apptPerSlot}   focused={activeFocus === "apptPerSlot"}   placeholder="1"      onInput={setApptPerSlot}   onSubmit={() => nextFocus("whLabelId")}    fg={THEME.muted} />
+        <Field label="WH Label ID"   width={13} value={whLabelId}     focused={activeFocus === "whLabelId"}     placeholder="123"    onInput={setWhLabelId}     onSubmit={() => nextFocus("whSource")}     fg={THEME.muted} />
+        <Field label="WH Source"                value={whSource}      focused={activeFocus === "whSource"}      placeholder="source" onInput={setWhSource}      onSubmit={() => nextFocus("providers")}    fg={THEME.muted} />
       </box>
 
       {/* ── Selector columns ─────────────────────────────────────────── */}
       <box flexDirection="row" flexGrow={1}>
 
         <box title=" Providers " border borderStyle="single"
-          borderColor={activeFocus === "providers" ? "#7aa2f7" : "#414868"}
+          borderColor={activeFocus === "providers" ? THEME.accent : THEME.dim}
           style={{ flexGrow: 1 }}
         >
           <select
@@ -673,18 +673,18 @@ export function AvailableSlotsTool({ apiKey, subdomain, onBackToList, active }: 
             showScrollIndicator
             wrapSelection={false}
             onChange={(idx) => setProviderIdx(idx)}
-            textColor="#a9b1d6"
-            focusedBackgroundColor="#1a1b26"
-            selectedBackgroundColor="#283457"
-            selectedTextColor="#7aa2f7"
-            descriptionColor="#565f89"
-            selectedDescriptionColor="#7aa2f7"
+            textColor={THEME.text}
+            focusedBackgroundColor={THEME.listFocusedBg}
+            selectedBackgroundColor={THEME.listSelectedBg}
+            selectedTextColor={THEME.accent}
+            descriptionColor={THEME.muted}
+            selectedDescriptionColor={THEME.accent}
             style={{ flexGrow: 1 }}
           />
         </box>
 
         <box title=" Operatories " border borderStyle="single"
-          borderColor={activeFocus === "operatories" ? "#7aa2f7" : "#414868"}
+          borderColor={activeFocus === "operatories" ? THEME.accent : THEME.dim}
           style={{ flexGrow: 1 }}
         >
           <select
@@ -695,18 +695,18 @@ export function AvailableSlotsTool({ apiKey, subdomain, onBackToList, active }: 
             showScrollIndicator
             wrapSelection={false}
             onChange={(idx) => setOperatoryIdx(idx)}
-            textColor="#a9b1d6"
-            focusedBackgroundColor="#1a1b26"
-            selectedBackgroundColor="#283457"
-            selectedTextColor="#7aa2f7"
-            descriptionColor="#565f89"
-            selectedDescriptionColor="#7aa2f7"
+            textColor={THEME.text}
+            focusedBackgroundColor={THEME.listFocusedBg}
+            selectedBackgroundColor={THEME.listSelectedBg}
+            selectedTextColor={THEME.accent}
+            descriptionColor={THEME.muted}
+            selectedDescriptionColor={THEME.accent}
             style={{ flexGrow: 1 }}
           />
         </box>
 
         <box title=" Appt Types " border borderStyle="single"
-          borderColor={activeFocus === "apptTypes" ? "#7aa2f7" : "#414868"}
+          borderColor={activeFocus === "apptTypes" ? THEME.accent : THEME.dim}
           style={{ flexGrow: 1 }}
         >
           <select
@@ -717,12 +717,12 @@ export function AvailableSlotsTool({ apiKey, subdomain, onBackToList, active }: 
             showScrollIndicator
             wrapSelection={false}
             onChange={(idx) => setApptTypeIdx(idx)}
-            textColor="#a9b1d6"
-            focusedBackgroundColor="#1a1b26"
-            selectedBackgroundColor="#283457"
-            selectedTextColor="#7aa2f7"
-            descriptionColor="#565f89"
-            selectedDescriptionColor="#7aa2f7"
+            textColor={THEME.text}
+            focusedBackgroundColor={THEME.listFocusedBg}
+            selectedBackgroundColor={THEME.listSelectedBg}
+            selectedTextColor={THEME.accent}
+            descriptionColor={THEME.muted}
+            selectedDescriptionColor={THEME.accent}
             style={{ flexGrow: 1 }}
           />
         </box>
@@ -740,16 +740,16 @@ export function AvailableSlotsTool({ apiKey, subdomain, onBackToList, active }: 
                          " Result "
         }
         border borderStyle="single"
-        borderColor={error || fetchError ? "#f7768e" : result ? "#9ece6a" : "#414868"}
+        borderColor={error || fetchError ? THEME.error : result ? THEME.success : THEME.dim}
         style={{ height: 18, flexShrink: 0 }}
       >
         <scrollbox focused={false} style={{ flexGrow: 1 }}>
-          {(loading || fetchLoading) && <text fg="#565f89">Working…</text>}
-          {!loading && !fetchLoading && fetchError && <text fg="#f7768e">{fetchError}</text>}
-          {!loading && !fetchLoading && error       && <text fg="#f7768e">{error}</text>}
+          {(loading || fetchLoading) && <text fg={THEME.muted}>Working…</text>}
+          {!loading && !fetchLoading && fetchError && <text fg={THEME.error}>{fetchError}</text>}
+          {!loading && !fetchLoading && error       && <text fg={THEME.error}>{error}</text>}
           {!loading && !fetchLoading && result      && <code content={result} filetype="javascript" syntaxStyle={JSON_SYNTAX_STYLE} />}
           {!loading && !fetchLoading && !result && !error && !fetchError && (
-            <text fg="#414868">Fill params · [Ctrl+L] fetch lists · [Ctrl+R] search · booleans: t/f/true/false</text>
+            <text fg={THEME.dim}>Fill params · [Ctrl+L] fetch lists · [Ctrl+R] search · booleans: t/f/true/false</text>
           )}
         </scrollbox>
       </box>
@@ -805,15 +805,15 @@ export function ToolsScreen({
       {/* Header */}
       <box
         flexDirection="row"
-        backgroundColor="#16161e"
+        backgroundColor={THEME.headerBg}
         style={{ height: 1, paddingLeft: 1, paddingRight: 1 }}
       >
-        <text fg="#7aa2f7">NexHealth Tools</text>
-        <text fg="#414868">  |  </text>
-        <text fg="#565f89">subdomain: </text>
-        <text fg="#9ece6a">{subdomain || "(none)"}</text>
-        <text fg="#414868">  |  </text>
-        <text fg="#565f89">[Tab] next field  [Ctrl+L] fetch  [Ctrl+R] run  [Ctrl+T] explorer  [Ctrl+C] quit</text>
+        <text fg={THEME.accent}>NexHealth Tools</text>
+        <text fg={THEME.dim}>  |  </text>
+        <text fg={THEME.muted}>subdomain: </text>
+        <text fg={THEME.success}>{subdomain || "(none)"}</text>
+        <text fg={THEME.dim}>  |  </text>
+        <text fg={THEME.muted}>[Tab] next field  [Ctrl+L] fetch  [Ctrl+R] run  [Ctrl+T] explorer  [Ctrl+C] quit</text>
       </box>
 
       <box flexDirection="row" flexGrow={1}>
@@ -822,7 +822,7 @@ export function ToolsScreen({
         <box
           title=" Tools "
           border borderStyle="single"
-          borderColor={toolsFocus === "list" ? "#7aa2f7" : "#414868"}
+          borderColor={toolsFocus === "list" ? THEME.accent : THEME.dim}
           style={{ width: 22, flexShrink: 0 }}
         >
           <select
@@ -832,10 +832,10 @@ export function ToolsScreen({
             showDescription={false}
             wrapSelection={false}
             onChange={(idx) => setToolIdx(idx)}
-            textColor="#a9b1d6"
-            focusedBackgroundColor="#1a1b26"
-            selectedBackgroundColor="#283457"
-            selectedTextColor="#7aa2f7"
+            textColor={THEME.text}
+            focusedBackgroundColor={THEME.listFocusedBg}
+            selectedBackgroundColor={THEME.listSelectedBg}
+            selectedTextColor={THEME.accent}
             style={{ flexGrow: 1 }}
           />
         </box>

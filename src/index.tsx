@@ -1,5 +1,5 @@
 import { createCliRenderer, type CliRenderer } from "@opentui/core";
-import { JSON_SYNTAX_STYLE } from "./theme.js";import { createRoot, useKeyboard } from "@opentui/react";
+import { JSON_SYNTAX_STYLE, THEME } from "./theme.js";import { createRoot, useKeyboard } from "@opentui/react";
 import { NexHealthClient, NexHealthAPIError } from "nexhealth-js-sdk";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { QUERY_PARAMS, V2024_ENDPOINTS, V2024_QUERY_PARAMS, getKeyPrefix, insertSuggestion } from "./params.js";
@@ -110,16 +110,16 @@ function ConfigScreen({ onStart }: { onStart: (apiKey: string, subdomain: string
         title=" NexHealth API Explorer "
         border
         borderStyle="double"
-        borderColor="#7aa2f7"
+        borderColor={THEME.accent}
         flexDirection="column"
         padding={2}
         style={{ width: 60, gap: 1 }}
       >
-        <text fg="#a9b1d6">API Key</text>
+        <text fg={THEME.text}>API Key</text>
         <box
           border
           borderStyle="single"
-          borderColor={focused === "apiKey" ? "#7aa2f7" : "#414868"}
+          borderColor={focused === "apiKey" ? THEME.accent : THEME.dim}
           style={{ height: 3 }}
         >
           <input
@@ -130,11 +130,11 @@ function ConfigScreen({ onStart }: { onStart: (apiKey: string, subdomain: string
           />
         </box>
 
-        <text fg="#a9b1d6">Subdomain (optional)</text>
+        <text fg={THEME.text}>Subdomain (optional)</text>
         <box
           border
           borderStyle="single"
-          borderColor={focused === "subdomain" ? "#7aa2f7" : "#414868"}
+          borderColor={focused === "subdomain" ? THEME.accent : THEME.dim}
           style={{ height: 3 }}
         >
           <input
@@ -146,9 +146,9 @@ function ConfigScreen({ onStart }: { onStart: (apiKey: string, subdomain: string
         </box>
 
         {error ? (
-          <text fg="#f7768e">{error}</text>
+          <text fg={THEME.error}>{error}</text>
         ) : (
-          <text fg="#565f89">[Tab] switch field  [Enter] confirm and start</text>
+          <text fg={THEME.muted}>[Tab] switch field  [Enter] confirm and start</text>
         )}
       </box>
     </box>
@@ -436,15 +436,15 @@ function ExplorerScreen({
       {/* Header */}
       <box
         flexDirection="row"
-        backgroundColor="#16161e"
+        backgroundColor={THEME.headerBg}
         style={{ height: 1, paddingLeft: 1, paddingRight: 1 }}
       >
-        <text fg="#7aa2f7">NexHealth API Explorer</text>
-        <text fg="#414868">  |  </text>
-        <text fg="#565f89">key: </text>
-        <text fg="#9ece6a">{maskedKey}</text>
-        <text fg="#414868">  |  </text>
-        <text fg="#565f89">subdomain: </text>
+        <text fg={THEME.accent}>NexHealth API Explorer</text>
+        <text fg={THEME.dim}>  |  </text>
+        <text fg={THEME.muted}>key: </text>
+        <text fg={THEME.success}>{maskedKey}</text>
+        <text fg={THEME.dim}>  |  </text>
+        <text fg={THEME.muted}>subdomain: </text>
         {editingSubdomain ? (
           <input
             key="subdomain-edit"
@@ -458,10 +458,10 @@ function ExplorerScreen({
             style={{ width: 20 }}
           />
         ) : (
-          <text fg="#9ece6a">{subdomain.length > 0 ? subdomain : "(none)"}</text>
+          <text fg={THEME.success}>{subdomain.length > 0 ? subdomain : "(none)"}</text>
         )}
-        <text fg="#414868">  |  </text>
-        <text fg="#565f89">
+        <text fg={THEME.dim}>  |  </text>
+        <text fg={THEME.muted}>
           {editingSubdomain
             ? "[Enter] save  [Esc] cancel"
             : "[Tab] panels  [←→] version  [Ctrl+R] run  [Ctrl+S] subdomain  [Ctrl+T] tools  [Ctrl+C] quit"}
@@ -476,14 +476,14 @@ function ExplorerScreen({
           title={` Endpoints · ${apiVersion} `}
           border
           borderStyle="single"
-          borderColor={focus === "endpoints" ? "#7aa2f7" : "#414868"}
+          borderColor={focus === "endpoints" ? THEME.accent : THEME.dim}
           flexDirection="column"
           style={{ width: 30, flexShrink: 0 }}
         >
           <box flexDirection="row" style={{ height: 1, flexShrink: 0, paddingLeft: 1 }}>
-            <text fg={apiVersion === "v2" ? "#7aa2f7" : "#565f89"}>v2</text>
-            <text fg="#414868">  |  </text>
-            <text fg={apiVersion === "v2024" ? "#7aa2f7" : "#565f89"}>v2024</text>
+            <text fg={apiVersion === "v2" ? THEME.accent : THEME.muted}>v2</text>
+            <text fg={THEME.dim}>  |  </text>
+            <text fg={apiVersion === "v2024" ? THEME.accent : THEME.muted}>v2024</text>
           </box>
           <select
             focused={focus === "endpoints"}
@@ -496,10 +496,10 @@ function ExplorerScreen({
               setEndpointIdx(idx);
               setMethodIdx(0);
             }}
-            textColor="#a9b1d6"
-            focusedBackgroundColor="#1a1b26"
-            selectedBackgroundColor="#283457"
-            selectedTextColor="#7aa2f7"
+            textColor={THEME.text}
+            focusedBackgroundColor={THEME.listFocusedBg}
+            selectedBackgroundColor={THEME.listSelectedBg}
+            selectedTextColor={THEME.accent}
             style={{ flexGrow: 1 }}
           />
         </box>
@@ -509,7 +509,7 @@ function ExplorerScreen({
           title=" Methods "
           border
           borderStyle="single"
-          borderColor={focus === "methods" ? "#7aa2f7" : "#414868"}
+          borderColor={focus === "methods" ? THEME.accent : THEME.dim}
           style={{ width: 20, flexShrink: 0 }}
         >
           <select
@@ -519,10 +519,10 @@ function ExplorerScreen({
             showDescription={false}
             wrapSelection
             onChange={(idx) => setMethodIdx(idx)}
-            textColor="#a9b1d6"
-            focusedBackgroundColor="#1a1b26"
-            selectedBackgroundColor="#283457"
-            selectedTextColor="#7aa2f7"
+            textColor={THEME.text}
+            focusedBackgroundColor={THEME.listFocusedBg}
+            selectedBackgroundColor={THEME.listSelectedBg}
+            selectedTextColor={THEME.accent}
             style={{ flexGrow: 1 }}
           />
         </box>
@@ -535,20 +535,20 @@ function ExplorerScreen({
             title=" Request Params "
             border
             borderStyle="single"
-            borderColor={inParams ? "#7aa2f7" : "#414868"}
+            borderColor={inParams ? THEME.accent : THEME.dim}
             flexDirection="column"
             padding={1}
             style={{ flexShrink: 0, gap: 0 }}
           >
             {needsParentId && (
               <>
-                <text fg={focus === "parentId" ? "#7aa2f7" : "#565f89"}>
+                <text fg={focus === "parentId" ? THEME.accent : THEME.muted}>
                   {(dispatch as Extract<DispatchType, { kind: "parentId" }>).label} (required)
                 </text>
                 <box
                   border
                   borderStyle="single"
-                  borderColor={focus === "parentId" ? "#7aa2f7" : "#414868"}
+                  borderColor={focus === "parentId" ? THEME.accent : THEME.dim}
                   style={{ height: 3, marginBottom: 1 }}
                 >
                   <input
@@ -564,13 +564,13 @@ function ExplorerScreen({
 
             {needsId && (
               <>
-                <text fg={focus === "id" ? "#7aa2f7" : "#565f89"}>
+                <text fg={focus === "id" ? THEME.accent : THEME.muted}>
                   {needsParentId ? "Resource ID (required)" : "ID (required)"}
                 </text>
                 <box
                   border
                   borderStyle="single"
-                  borderColor={focus === "id" ? "#7aa2f7" : "#414868"}
+                  borderColor={focus === "id" ? THEME.accent : THEME.dim}
                   style={{ height: 3, marginBottom: 1 }}
                 >
                   <input
@@ -584,13 +584,13 @@ function ExplorerScreen({
               </>
             )}
 
-            <text fg={focus === "query" ? "#7aa2f7" : "#565f89"}>
+            <text fg={focus === "query" ? THEME.accent : THEME.muted}>
               Query Params (JSON){showAutocomplete && focus === "query" ? "  [↑↓] navigate  [Tab] accept" : ""}
             </text>
             <box
               border
               borderStyle="single"
-              borderColor={focus === "query" ? "#7aa2f7" : "#414868"}
+              borderColor={focus === "query" ? THEME.accent : THEME.dim}
               style={{ height: 3 }}
             >
               <input
@@ -611,7 +611,7 @@ function ExplorerScreen({
               <box
                 border
                 borderStyle="single"
-                borderColor="#7aa2f7"
+                borderColor={THEME.accent}
                 style={{ height: Math.min(suggestions.length, 6) + 2, marginBottom: 1 }}
               >
                 <select
@@ -619,9 +619,9 @@ function ExplorerScreen({
                   options={suggestions.map((s) => ({ name: s, description: "", value: s }))}
                   selectedIndex={acIdx}
                   showDescription={false}
-                  selectedBackgroundColor="#283457"
-                  selectedTextColor="#7aa2f7"
-                  textColor="#a9b1d6"
+                  selectedBackgroundColor={THEME.listSelectedBg}
+                  selectedTextColor={THEME.accent}
+                  textColor={THEME.text}
                   style={{ flexGrow: 1 }}
                 />
               </box>
@@ -631,11 +631,11 @@ function ExplorerScreen({
 
             {hasBody && (
               <>
-                <text fg={focus === "body" ? "#7aa2f7" : "#565f89"}>Body Params (JSON)</text>
+                <text fg={focus === "body" ? THEME.accent : THEME.muted}>Body Params (JSON)</text>
                 <box
                   border
                   borderStyle="single"
-                  borderColor={focus === "body" ? "#7aa2f7" : "#414868"}
+                  borderColor={focus === "body" ? THEME.accent : THEME.dim}
                   style={{ height: 3, marginBottom: 1 }}
                 >
                   <input
@@ -649,7 +649,7 @@ function ExplorerScreen({
               </>
             )}
 
-            <text fg="#414868">
+            <text fg={THEME.dim}>
               [Ctrl+R] run  [Enter] advance/run  [Tab] switch panel
             </text>
           </box>
@@ -664,19 +664,19 @@ function ExplorerScreen({
             }
             border
             borderStyle="single"
-            borderColor={error ? "#f7768e" : result ? "#9ece6a" : "#414868"}
+            borderColor={error ? THEME.error : result ? THEME.success : THEME.dim}
             flexGrow={1}
           >
             <scrollbox focused={false} style={{ flexGrow: 1 }}>
               {loading && (
-                <text fg="#565f89">
+                <text fg={THEME.muted}>
                   Running {selectedEndpoint}.{selectedMethod}()...
                 </text>
               )}
-              {!loading && error && <text fg="#f7768e">{error}</text>}
+              {!loading && error && <text fg={THEME.error}>{error}</text>}
               {!loading && result && <code content={result} filetype="javascript" syntaxStyle={JSON_SYNTAX_STYLE} />}
               {!loading && !result && !error && (
-                <text fg="#414868">
+                <text fg={THEME.dim}>
                   Select an endpoint and method, then press [Ctrl+R] to run.
                 </text>
               )}
