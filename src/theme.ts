@@ -1,12 +1,12 @@
 import { SyntaxStyle, RGBA } from "@opentui/core";
 
 export const THEME = {
-  accent:          "#d3aa96",  // active borders, focused labels, selected text
-  muted:           "#8a6451",  // secondary text, descriptions, optional labels
-  dim:             "#685341",  // inactive borders, separators, very dim text
-  text:            "#f5e5d6",  // primary text
-  error:           "#ff3341",  // error states
-  success:         "#33ffdc",  // success / result states
+  accent:          "#7aa2f7",  // active borders, focused labels, selected text
+  muted:           "#565f89",  // secondary text, descriptions, optional labels
+  dim:             "#414868",  // inactive borders, separators, very dim text
+  text:            "#a9b1d6",  // primary text
+  error:           "#f7768e",  // error states
+  success:         "#9ece6a",  // success / result states
   listFocusedBg:   "#1a1b26",  // focused row background in select lists
   listSelectedBg:  "#283457",  // selected row background in select lists
   headerBg:        "#16161e",  // top header bar background
