@@ -2,7 +2,7 @@ import { createCliRenderer, SyntaxStyle, RGBA, type CliRenderer } from "@opentui
 import { createRoot, useKeyboard } from "@opentui/react";
 import { NexHealthClient, NexHealthAPIError } from "nexhealth-js-sdk";
 import { useState, useCallback, useEffect, useRef } from "react";
-import { QUERY_PARAMS, getKeyPrefix, insertSuggestion } from "./params.js";
+import { QUERY_PARAMS, V2024_ENDPOINTS, V2024_QUERY_PARAMS, getKeyPrefix, insertSuggestion } from "./params.js";
 import { loadConfig, saveConfig, clearConfig } from "./config.js";
 import { spawnSync } from "child_process";
 import { writeFileSync, unlinkSync } from "fs";
@@ -138,6 +138,7 @@ function ConfigScreen({ onStart }: { onStart: (apiKey: string, subdomain: string
 
 // ─── Explorer Screen ───────────────────────────────────────────────────────────
 
+type ApiVersion = "v2" | "v2024";
 type FocusArea = "endpoints" | "methods" | "id" | "query" | "body";
 
 function ExplorerScreen({
@@ -151,6 +152,7 @@ function ExplorerScreen({
   onSubdomainChange: (sub: string) => void;
   onLogout: () => void;
 }) {
+  const [apiVersion, setApiVersion] = useState<ApiVersion>("v2");
   const [endpointIdx, setEndpointIdx] = useState(0);
   const [methodIdx, setMethodIdx] = useState(0);
   const [focus, setFocus] = useState<FocusArea>("endpoints");
@@ -167,21 +169,31 @@ function ExplorerScreen({
   const [queryInputKey, setQueryInputKey] = useState(0);
   const resultCache = useRef<Record<string, string>>({});
 
-  const selectedEndpoint = ENDPOINT_NAMES[endpointIdx] ?? "appointments";
-  const methods = ENDPOINTS[selectedEndpoint] ?? [];
+  const activeEndpoints = apiVersion === "v2" ? ENDPOINTS : V2024_ENDPOINTS;
+  const activeEndpointNames = Object.keys(activeEndpoints);
+  const activeQueryParams = apiVersion === "v2" ? QUERY_PARAMS : V2024_QUERY_PARAMS;
+
+  const selectedEndpoint = activeEndpointNames[endpointIdx] ?? activeEndpointNames[0] ?? "";
+  const methods = activeEndpoints[selectedEndpoint] ?? [];
   const selectedMethod = methods[methodIdx] ?? "";
   const needsId = NEEDS_ID.has(selectedMethod);
   const hasBody = HAS_BODY.has(selectedMethod);
 
   // Autocomplete: compute suggestions from the current query input value
   const keyPrefix = focus === "query" ? getKeyPrefix(queryParam) : null;
-  const allQueryKeys = QUERY_PARAMS[selectedEndpoint]?.[selectedMethod] ?? [];
+  const allQueryKeys = activeQueryParams[selectedEndpoint]?.[selectedMethod] ?? [];
   const suggestions = keyPrefix !== null
     ? allQueryKeys.filter((k) => k.startsWith(keyPrefix))
     : [];
   const showAutocomplete = suggestions.length > 0;
 
   useEffect(() => { setAcIdx(0); }, [keyPrefix]);
+
+  // Reset endpoint/method selection when version switches
+  useEffect(() => {
+    setEndpointIdx(0);
+    setMethodIdx(0);
+  }, [apiVersion]);
 
   // Reset params when endpoint or method changes
   useEffect(() => {
@@ -220,7 +232,9 @@ function ExplorerScreen({
         subdomain: subdomain || undefined,
       });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const resource = (client.v2 as any)[selectedEndpoint];
+      const versionedClient = apiVersion === "v2" ? client.v2 : client.v2024;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const resource = (versionedClient as any)[selectedEndpoint];
       if (!resource) throw new Error(`Unknown endpoint: ${selectedEndpoint}`);
 
       const id = needsId && idParam ? parseInt(idParam, 10) : undefined;
@@ -267,7 +281,7 @@ function ExplorerScreen({
     } finally {
       setLoading(false);
     }
-  }, [apiKey, subdomain, selectedEndpoint, selectedMethod, needsId, idParam, queryParam, bodyParam]);
+  }, [apiKey, subdomain, apiVersion, selectedEndpoint, selectedMethod, needsId, idParam, queryParam, bodyParam]);
 
   useKeyboard((key) => {
     if (editingSubdomain) {
@@ -314,6 +328,11 @@ function ExplorerScreen({
       }
       return;
     }
+    if (focus === "endpoints") {
+      if (key.name === "left")  { setApiVersion("v2");    return; }
+      if (key.name === "right") { setApiVersion("v2024"); return; }
+    }
+
     if (key.ctrl && key.name === "r") runCall();
     if (key.ctrl && key.name === "l") { onLogout(); return; }
     if (key.ctrl && key.name === "s") {
@@ -322,11 +341,16 @@ function ExplorerScreen({
     }
   });
 
-  const endpointOptions = ENDPOINT_NAMES.map((k) => ({
+  const endpointOptions = activeEndpointNames.map((k) => ({
     name: toLabel(k),
-    description: `v2.${k}`,
+    description: `${apiVersion}.${k}`,
     value: k,
   }));
+
+  const versionOptions = [
+    { name: "v2",   value: "v2" },
+    { name: "v2024", value: "v2024" },
+  ];
 
   const methodOptions = methods.map((m) => ({
     name: m,
@@ -373,21 +397,29 @@ function ExplorerScreen({
         <text fg="#565f89">
           {editingSubdomain
             ? "[Enter] save  [Esc] cancel"
-            : "[Tab] panels  [Ctrl+R] run  [Ctrl+S] subdomain  [Ctrl+L] logout  [Ctrl+C] quit"}
+            : "[Tab] panels  [←→] version  [Ctrl+R] run  [Ctrl+S] subdomain  [Ctrl+C] quit"}
         </text>
       </box>
 
       {/* Three-column layout */}
       <box flexDirection="row" flexGrow={1}>
 
-        {/* Endpoint list */}
+        {/* Endpoint list (with version tab-select at top) */}
         <box
-          title=" Endpoints "
+          title={` Endpoints · ${apiVersion} `}
           border
           borderStyle="single"
           borderColor={focus === "endpoints" ? "#7aa2f7" : "#414868"}
+          flexDirection="column"
           style={{ width: 28, flexShrink: 0 }}
         >
+          <tab-select
+            options={versionOptions}
+            selectedIndex={apiVersion === "v2" ? 0 : 1}
+            focused={false}
+            onChange={(idx) => setApiVersion(idx === 0 ? "v2" : "v2024")}
+            style={{ height: 1, flexShrink: 0 }}
+          />
           <select
             focused={focus === "endpoints"}
             options={endpointOptions}
