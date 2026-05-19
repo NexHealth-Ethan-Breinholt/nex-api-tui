@@ -250,17 +250,19 @@ export function BookAppointmentTool({ apiKey, subdomain }: { apiKey: string; sub
     ? providers.map((p) => ({ name: `${p.first_name} ${p.last_name}`, description: `ID: ${p.id}`, value: p.id }))
     : [{ name: fetchLoading ? "Fetching…" : "(none — Ctrl+L to fetch)", description: "", value: null }];
 
-  const operatoryOptions = [
-    { name: "(none)", description: "", value: null },
-    ...operatories.map((o) => ({ name: o.name, description: `ID: ${o.id}`, value: o.id })),
-    ...(operatories.length === 0 && !fetchLoading ? [{ name: "(Ctrl+L to fetch)", description: "", value: null }] : []),
-  ];
+  const operatoryOptions = operatories.length > 0
+    ? [
+        { name: "(none)", description: "", value: null },
+        ...operatories.map((o) => ({ name: o.name, description: `ID: ${o.id}`, value: o.id })),
+      ]
+    : [{ name: fetchLoading ? "Fetching…" : "(none — Ctrl+L to fetch)", description: "", value: null }];
 
-  const apptTypeOptions = [
-    { name: "(none)", description: "", value: null },
-    ...apptTypes.map((a) => ({ name: a.duration ? `${a.name} (${a.duration}m)` : a.name, description: `ID: ${a.id}`, value: a.id })),
-    ...(apptTypes.length === 0 && !fetchLoading ? [{ name: "(Ctrl+L to fetch)", description: "", value: null }] : []),
-  ];
+  const apptTypeOptions = apptTypes.length > 0
+    ? [
+        { name: "(none)", description: "", value: null },
+        ...apptTypes.map((a) => ({ name: a.duration ? `${a.name} (${a.duration}m)` : a.name, description: `ID: ${a.id}`, value: a.id })),
+      ]
+    : [{ name: fetchLoading ? "Fetching…" : "(none — Ctrl+L to fetch)", description: "", value: null }];
 
   const inRequired = ["location", "patient", "date", "time", "duration"].includes(focus);
   const inOptional = ["note", "referrer", "descriptorIds", "apptPerSlot",
