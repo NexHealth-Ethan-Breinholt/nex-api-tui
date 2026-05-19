@@ -23,17 +23,21 @@ const JSON_SYNTAX_STYLE = SyntaxStyle.fromStyles({
 const ENDPOINTS: Record<string, string[]> = {
   appointmentSlots: ["list"],
   appointmentTypes: ["create", "delete", "get", "list", "update"],
+  "appointmentTypes.descriptors": ["list"],
   appointments: ["create", "get", "list", "listAll", "update"],
+  "appointments.descriptors": ["list"],
   availabilities: ["create", "delete", "get", "list", "listAll", "update"],
   documentTypes: ["get", "list"],
   institutions: ["get", "list"],
   locations: ["get", "list"],
+  "locations.descriptors": ["list"],
   nexStaff: ["list", "listAll"],
   operatories: ["get", "list", "listAll"],
   patientAlerts: ["create", "get", "list", "update"],
   patientDocuments: ["create", "list"],
   patientRecalls: ["get", "list", "listAll"],
   patients: ["create", "get", "list", "listAll"],
+  "patients.insuranceCoverages": ["list"],
   procedures: ["list", "listAll"],
   providers: ["get", "list", "listAll"],
   recallTypes: ["get", "list"],
@@ -42,13 +46,31 @@ const ENDPOINTS: Record<string, string[]> = {
   webhookSubscriptions: ["create", "delete", "list", "update"],
 };
 
-const ENDPOINT_NAMES = Object.keys(ENDPOINTS);
-
 const NEEDS_ID = new Set(["get", "update", "delete"]);
 const HAS_BODY = new Set(["create", "update"]);
 
+// ─── Endpoint dispatch metadata ───────────────────────────────────────────────
+
+type DispatchType =
+  | { kind: "standard" }
+  | { kind: "parentId"; label: string; threeArgCreate: boolean }
+  | { kind: "subResource"; parent: string; sub: string; idRequired: boolean };
+
+const ENDPOINT_DISPATCH: Record<string, DispatchType> = {
+  patientAlerts:        { kind: "parentId", label: "Patient ID",  threeArgCreate: false },
+  patientDocuments:     { kind: "parentId", label: "Patient ID",  threeArgCreate: true  },
+  webhookSubscriptions: { kind: "parentId", label: "Endpoint ID", threeArgCreate: false },
+  "appointments.descriptors":     { kind: "subResource", parent: "appointments",    sub: "descriptors",       idRequired: true  },
+  "appointmentTypes.descriptors": { kind: "subResource", parent: "appointmentTypes", sub: "descriptors",      idRequired: true  },
+  "locations.descriptors":        { kind: "subResource", parent: "locations",        sub: "descriptors",      idRequired: true  },
+  "patients.insuranceCoverages":  { kind: "subResource", parent: "patients",         sub: "insuranceCoverages", idRequired: true },
+  "feeSchedules.procedures":      { kind: "subResource", parent: "feeSchedules",     sub: "procedures",       idRequired: false },
+  "workingHours.labels":          { kind: "subResource", parent: "workingHours",     sub: "labels",           idRequired: false },
+};
+
 function toLabel(key: string): string {
-  return key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
+  const fmt = (k: string) => k.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
+  return key.split(".").map(fmt).join(" · ");
 }
 
 function methodDesc(method: string): string {
@@ -139,7 +161,7 @@ function ConfigScreen({ onStart }: { onStart: (apiKey: string, subdomain: string
 // ─── Explorer Screen ───────────────────────────────────────────────────────────
 
 type ApiVersion = "v2" | "v2024";
-type FocusArea = "endpoints" | "methods" | "id" | "query" | "body";
+type FocusArea = "endpoints" | "methods" | "parentId" | "id" | "query" | "body";
 
 function ExplorerScreen({
   apiKey,
@@ -158,6 +180,7 @@ function ExplorerScreen({
   const [focus, setFocus] = useState<FocusArea>("endpoints");
   const [editingSubdomain, setEditingSubdomain] = useState(false);
   const [subdomainDraft, setSubdomainDraft] = useState(subdomain);
+  const [parentIdParam, setParentIdParam] = useState("");
   const [idParam, setIdParam] = useState("");
   const [queryParam, setQueryParam] = useState("");
   const [bodyParam, setBodyParam] = useState("");
@@ -176,8 +199,16 @@ function ExplorerScreen({
   const selectedEndpoint = activeEndpointNames[endpointIdx] ?? activeEndpointNames[0] ?? "";
   const methods = activeEndpoints[selectedEndpoint] ?? [];
   const selectedMethod = methods[methodIdx] ?? "";
-  const needsId = NEEDS_ID.has(selectedMethod);
-  const hasBody = HAS_BODY.has(selectedMethod);
+  const dispatch = ENDPOINT_DISPATCH[selectedEndpoint] ?? { kind: "standard" } as DispatchType;
+  const needsParentId = dispatch.kind === "parentId";
+  const needsId =
+    dispatch.kind === "standard"     ? NEEDS_ID.has(selectedMethod) :
+    dispatch.kind === "parentId"     ? NEEDS_ID.has(selectedMethod) :
+    /* subResource */                  dispatch.idRequired;
+  const hasBody =
+    dispatch.kind === "standard"     ? HAS_BODY.has(selectedMethod) :
+    dispatch.kind === "parentId"     ? HAS_BODY.has(selectedMethod) :
+    /* subResource */                  false;
 
   // Autocomplete: compute suggestions from the current query input value
   const keyPrefix = focus === "query" ? getKeyPrefix(queryParam) : null;
@@ -197,6 +228,7 @@ function ExplorerScreen({
 
   // Reset params when endpoint or method changes
   useEffect(() => {
+    setParentIdParam("");
     setIdParam("");
     setQueryParam("");
     setBodyParam("");
@@ -210,6 +242,7 @@ function ExplorerScreen({
   }, [selectedEndpoint]);
 
   const focusCycle: FocusArea[] = ["endpoints", "methods"];
+  if (needsParentId) focusCycle.push("parentId");
   if (needsId) focusCycle.push("id");
   focusCycle.push("query");
   if (hasBody) focusCycle.push("body");
@@ -232,40 +265,67 @@ function ExplorerScreen({
         subdomain: subdomain || undefined,
       });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const versionedClient = apiVersion === "v2" ? client.v2 : client.v2024;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const resource = (versionedClient as any)[selectedEndpoint];
-      if (!resource) throw new Error(`Unknown endpoint: ${selectedEndpoint}`);
-
-      const id = needsId && idParam ? parseInt(idParam, 10) : undefined;
+      const vc = apiVersion === "v2" ? client.v2 : client.v2024;
 
       let query: object | undefined;
       if (queryParam.trim()) {
-        try {
-          query = JSON.parse(queryParam);
-        } catch {
-          throw new Error("Invalid JSON in Query Params");
-        }
+        try { query = JSON.parse(queryParam); }
+        catch { throw new Error("Invalid JSON in Query Params"); }
       }
 
       let body: object | undefined;
       if (bodyParam.trim()) {
-        try {
-          body = JSON.parse(bodyParam);
-        } catch {
-          throw new Error("Invalid JSON in Body Params");
-        }
+        try { body = JSON.parse(bodyParam); }
+        catch { throw new Error("Invalid JSON in Body Params"); }
       }
 
+      const d = ENDPOINT_DISPATCH[selectedEndpoint] ?? { kind: "standard" } as DispatchType;
       let resp: unknown;
-      switch (selectedMethod) {
-        case "get":     resp = await resource.get(id, query); break;
-        case "list":    resp = await resource.list(query); break;
-        case "listAll": resp = await resource.listAll(query); break;
-        case "create":  resp = await resource.create(query ?? {}, body ?? {}); break;
-        case "update":  resp = await resource.update(id, body ?? {}); break;
-        case "delete":  resp = await resource.delete(id, query); break;
-        default: throw new Error(`Unknown method: ${selectedMethod}`);
+
+      if (d.kind === "subResource") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const sub = (vc as any)[d.parent]?.[d.sub];
+        if (!sub) throw new Error(`Unknown sub-resource: ${selectedEndpoint}`);
+        const id = d.idRequired && idParam ? parseInt(idParam, 10) : undefined;
+        switch (selectedMethod) {
+          case "list":    resp = d.idRequired ? await sub.list(id, query ?? {}) : await sub.list(query ?? {}); break;
+          case "listAll": resp = d.idRequired ? await sub.listAll(id, query ?? {}) : await sub.listAll(query ?? {}); break;
+          default: throw new Error(`Unsupported method ${selectedMethod} on sub-resource`);
+        }
+      } else if (d.kind === "parentId") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const resource = (vc as any)[selectedEndpoint];
+        if (!resource) throw new Error(`Unknown endpoint: ${selectedEndpoint}`);
+        const parentId = parseInt(parentIdParam, 10);
+        if (isNaN(parentId)) throw new Error(`${d.label} is required`);
+        const id = idParam ? parseInt(idParam, 10) : undefined;
+        switch (selectedMethod) {
+          case "list":   resp = await resource.list(parentId, query ?? {}); break;
+          case "create":
+            resp = d.threeArgCreate
+              ? await resource.create(parentId, query ?? {}, body ?? {})
+              : await resource.create(parentId, body ?? {});
+            break;
+          case "get":    resp = await resource.get(parentId, id); break;
+          case "update": resp = await resource.update(parentId, id, body ?? {}); break;
+          case "delete": resp = await resource.delete(parentId, id); break;
+          default: throw new Error(`Unknown method: ${selectedMethod}`);
+        }
+      } else {
+        // standard dispatch
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const resource = (vc as any)[selectedEndpoint];
+        if (!resource) throw new Error(`Unknown endpoint: ${selectedEndpoint}`);
+        const id = needsId && idParam ? parseInt(idParam, 10) : undefined;
+        switch (selectedMethod) {
+          case "get":     resp = await resource.get(id, query); break;
+          case "list":    resp = await resource.list(query); break;
+          case "listAll": resp = await resource.listAll(query); break;
+          case "create":  resp = await resource.create(query ?? {}, body ?? {}); break;
+          case "update":  resp = await resource.update(id, body ?? {}); break;
+          case "delete":  resp = await resource.delete(id, query); break;
+          default: throw new Error(`Unknown method: ${selectedMethod}`);
+        }
       }
 
       const json = JSON.stringify(resp, null, 2);
@@ -281,7 +341,7 @@ function ExplorerScreen({
     } finally {
       setLoading(false);
     }
-  }, [apiKey, subdomain, apiVersion, selectedEndpoint, selectedMethod, needsId, idParam, queryParam, bodyParam]);
+  }, [apiKey, subdomain, apiVersion, selectedEndpoint, selectedMethod, needsId, parentIdParam, idParam, queryParam, bodyParam]);
 
   useKeyboard((key) => {
     if (editingSubdomain) {
@@ -341,16 +401,16 @@ function ExplorerScreen({
     }
   });
 
-  const endpointOptions = activeEndpointNames.map((k) => ({
-    name: toLabel(k),
-    description: `${apiVersion}.${k}`,
-    value: k,
-  }));
-
-  const versionOptions = [
-    { name: "v2",   value: "v2" },
-    { name: "v2024", value: "v2024" },
-  ];
+  const endpointOptions = activeEndpointNames.map((k) => {
+    const dot = k.indexOf(".");
+    const isSub = dot !== -1;
+    const subName = isSub ? k.slice(dot + 1) : "";
+    return {
+      name: isSub ? `  └ ${toLabel(subName)}` : toLabel(k),
+      description: `${apiVersion}.${k}`,
+      value: k,
+    };
+  });
 
   const methodOptions = methods.map((m) => ({
     name: m,
@@ -413,13 +473,11 @@ function ExplorerScreen({
           flexDirection="column"
           style={{ width: 28, flexShrink: 0 }}
         >
-          <tab-select
-            options={versionOptions}
-            selectedIndex={apiVersion === "v2" ? 0 : 1}
-            focused={false}
-            onChange={(idx) => setApiVersion(idx === 0 ? "v2" : "v2024")}
-            style={{ height: 1, flexShrink: 0 }}
-          />
+          <box flexDirection="row" style={{ height: 1, flexShrink: 0, paddingLeft: 1 }}>
+            <text fg={apiVersion === "v2" ? "#7aa2f7" : "#565f89"}>v2</text>
+            <text fg="#414868">  |  </text>
+            <text fg={apiVersion === "v2024" ? "#7aa2f7" : "#565f89"}>v2024</text>
+          </box>
           <select
             focused={focus === "endpoints"}
             options={endpointOptions}
@@ -475,9 +533,33 @@ function ExplorerScreen({
             padding={1}
             style={{ flexShrink: 0, gap: 0 }}
           >
+            {needsParentId && (
+              <>
+                <text fg={focus === "parentId" ? "#7aa2f7" : "#565f89"}>
+                  {(dispatch as Extract<DispatchType, { kind: "parentId" }>).label} (required)
+                </text>
+                <box
+                  border
+                  borderStyle="single"
+                  borderColor={focus === "parentId" ? "#7aa2f7" : "#414868"}
+                  style={{ height: 3, marginBottom: 1 }}
+                >
+                  <input
+                    key={`parentId-${paramKey}`}
+                    placeholder="Parent resource ID..."
+                    focused={focus === "parentId"}
+                    onInput={setParentIdParam}
+                    onSubmit={() => setFocus(needsId ? "id" : "query")}
+                  />
+                </box>
+              </>
+            )}
+
             {needsId && (
               <>
-                <text fg={focus === "id" ? "#7aa2f7" : "#565f89"}>ID (required)</text>
+                <text fg={focus === "id" ? "#7aa2f7" : "#565f89"}>
+                  {needsParentId ? "Resource ID (required)" : "ID (required)"}
+                </text>
                 <box
                   border
                   borderStyle="single"

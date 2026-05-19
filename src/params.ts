@@ -74,23 +74,37 @@ export const QUERY_PARAMS: Record<string, Record<string, string[]>> = {
   webhookSubscriptions: {
     list: ["resource_type", "event"],
   },
+  "appointments.descriptors": {
+    list: ["descriptor_type"],
+  },
+  "appointmentTypes.descriptors": {
+    list: ["location_id", "descriptor_type"],
+  },
+  "locations.descriptors": {
+    list: ["descriptor_type"],
+  },
+  "patients.insuranceCoverages": {
+    list: ["page", "per_page"],
+  },
 };
 
 export const V2024_ENDPOINTS: Record<string, string[]> = {
-  adjustmentTypes:   ["get", "list", "listAll"],
-  adjustments:       ["create", "get", "list", "listAll"],
-  appointments:      ["create", "get", "list", "listAll", "update"],
-  availableSlots:    ["list"],
-  charges:           ["get", "list", "listAll"],
-  clinicalNotes:     ["list", "listAll"],
-  feeSchedules:      ["get", "list", "listAll"],
-  guarantorBalances: ["get", "list", "listAll"],
-  insuranceBalances: ["get", "list", "listAll"],
-  insuranceClaims:   ["get", "list", "listAll"],
-  insuranceCoverages:["get", "list", "listAll"],
-  insurancePlans:    ["get", "list", "listAll"],
-  onboardings:       ["create", "get", "list", "listAll"],
-  operatories:       ["list", "listAll"],
+  adjustmentTypes:            ["get", "list", "listAll"],
+  adjustments:                ["create", "get", "list", "listAll"],
+  appointments:               ["create", "get", "list", "listAll", "update"],
+  "appointments.descriptors": ["list"],
+  availableSlots:             ["list"],
+  charges:                    ["get", "list", "listAll"],
+  clinicalNotes:              ["list", "listAll"],
+  feeSchedules:               ["get", "list", "listAll"],
+  "feeSchedules.procedures":  ["list", "listAll"],
+  guarantorBalances:          ["get", "list", "listAll"],
+  insuranceBalances:          ["get", "list", "listAll"],
+  insuranceClaims:            ["get", "list", "listAll"],
+  insuranceCoverages:         ["get", "list", "listAll"],
+  insurancePlans:             ["get", "list", "listAll"],
+  onboardings:                ["create", "get", "list", "listAll"],
+  operatories:                ["list", "listAll"],
   patientRecalls:    ["list", "listAll"],
   patients:          ["create", "get", "list", "listAll"],
   paymentTypes:      ["get", "list", "listAll"],
@@ -99,8 +113,9 @@ export const V2024_ENDPOINTS: Record<string, string[]> = {
   providerSearch:    ["list"],
   providers:         ["get", "list", "listAll"],
   treatmentPlans:    ["get", "list", "listAll"],
-  webhookSubscriptions: ["create", "delete", "list", "update"],
-  workingHours:      ["create", "delete", "get", "list", "listAll", "update"],
+  webhookSubscriptions:       ["create", "delete", "list", "update"],
+  workingHours:               ["create", "delete", "get", "list", "listAll", "update"],
+  "workingHours.labels":      ["list", "listAll"],
 };
 
 export const V2024_QUERY_PARAMS: Record<string, Record<string, string[]>> = {
@@ -212,6 +227,15 @@ export const V2024_QUERY_PARAMS: Record<string, Record<string, string[]>> = {
     list:    ["location_id", "provider_id", "operatory_id", "label_id", "source", "active", "ignore_past_dates", "include"],
     listAll: ["location_id", "provider_id", "operatory_id", "label_id", "source", "active", "ignore_past_dates", "include"],
     create:  ["location_id"],
+  },
+  "appointments.descriptors": {},
+  "feeSchedules.procedures": {
+    list:    ["location_id", "fee_schedule_id", "updated_since"],
+    listAll: ["location_id", "fee_schedule_id", "updated_since"],
+  },
+  "workingHours.labels": {
+    list:    ["location_id", "search_name", "active"],
+    listAll: ["location_id", "search_name", "active"],
   },
 };
 
