@@ -778,17 +778,26 @@ type ToolsFocus = "list" | "tool";
 export function ToolsScreen({
   apiKey,
   subdomain,
+  onSubdomainChange,
   onSwitchToExplorer,
 }: {
-  apiKey:             string;
-  subdomain:          string;
-  onSwitchToExplorer: () => void;
+  apiKey:              string;
+  subdomain:           string;
+  onSubdomainChange:   (sub: string) => void;
+  onSwitchToExplorer:  () => void;
 }) {
-  const [toolIdx,    setToolIdx]    = useState(0);
-  const [toolsFocus, setToolsFocus] = useState<ToolsFocus>("list");
+  const [toolIdx,        setToolIdx]        = useState(0);
+  const [toolsFocus,     setToolsFocus]     = useState<ToolsFocus>("list");
+  const [editingSubdomain, setEditingSubdomain] = useState(false);
+  const [subdomainDraft,   setSubdomainDraft]   = useState(subdomain);
 
   useKeyboard((key) => {
+    if (editingSubdomain) {
+      if (key.name === "escape") { setSubdomainDraft(subdomain); setEditingSubdomain(false); }
+      return;
+    }
     if (key.ctrl && key.name === "t") { onSwitchToExplorer(); return; }
+    if (key.ctrl && key.name === "s") { setSubdomainDraft(subdomain); setEditingSubdomain(true); return; }
     if (toolsFocus === "list") {
       if (key.name === "up")    { setToolIdx((i: number) => Math.max(0, i - 1)); return; }
       if (key.name === "down")  { setToolIdx((i: number) => Math.min(TOOLS.length - 1, i + 1)); return; }
@@ -811,9 +820,24 @@ export function ToolsScreen({
         <text fg={THEME.accent}>NexHealth Tools</text>
         <text fg={THEME.dim}>  |  </text>
         <text fg={THEME.muted}>subdomain: </text>
-        <text fg={THEME.success}>{subdomain || "(none)"}</text>
+        {editingSubdomain ? (
+          <input
+            key="subdomain-edit"
+            placeholder="subdomain..."
+            focused
+            onInput={setSubdomainDraft}
+            onSubmit={() => { onSubdomainChange(subdomainDraft.trim()); setEditingSubdomain(false); }}
+            style={{ width: 20 }}
+          />
+        ) : (
+          <text fg={THEME.success}>{subdomain || "(none)"}</text>
+        )}
         <text fg={THEME.dim}>  |  </text>
-        <text fg={THEME.muted}>[Tab] next field  [Ctrl+L] fetch  [Ctrl+R] run  [Ctrl+T] explorer  [Ctrl+C] quit</text>
+        <text fg={THEME.muted}>
+          {editingSubdomain
+            ? "[Enter] save  [Esc] cancel"
+            : "[Tab] next field  [Ctrl+L] fetch  [Ctrl+R] run  [Ctrl+S] subdomain  [Ctrl+T] explorer  [Ctrl+C] quit"}
+        </text>
       </box>
 
       <box flexDirection="row" flexGrow={1}>

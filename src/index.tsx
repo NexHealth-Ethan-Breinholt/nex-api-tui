@@ -712,7 +712,7 @@ function App() {
   }, []);
 
   if (screen === "config")    return <ConfigScreen onStart={handleStart} />;
-  if (screen === "tools")     return <ToolsScreen apiKey={apiKey} subdomain={subdomain} onSwitchToExplorer={() => setScreen("explorer")} />;
+  if (screen === "tools")     return <ToolsScreen apiKey={apiKey} subdomain={subdomain} onSubdomainChange={setSubdomain} onSwitchToExplorer={() => setScreen("explorer")} />;
   return <ExplorerScreen apiKey={apiKey} subdomain={subdomain} onSubdomainChange={setSubdomain} onLogout={handleLogout} onSwitchToTools={() => setScreen("tools")} />;
 }
 
