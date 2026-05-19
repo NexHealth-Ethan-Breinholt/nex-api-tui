@@ -1,8 +1,15 @@
-import { createCliRenderer, SyntaxStyle, RGBA } from "@opentui/core";
+import { createCliRenderer, SyntaxStyle, RGBA, type CliRenderer } from "@opentui/core";
 import { createRoot, useKeyboard } from "@opentui/react";
 import { NexHealthClient, NexHealthAPIError } from "nexhealth-js-sdk";
 import { useState, useCallback, useEffect } from "react";
 import { QUERY_PARAMS, getKeyPrefix, insertSuggestion } from "./params.js";
+import { loadConfig, saveConfig, clearConfig } from "./config.js";
+import { spawnSync } from "child_process";
+import { writeFileSync, unlinkSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
+
+let cliRenderer: CliRenderer | null = null;
 
 const JSON_SYNTAX_STYLE = SyntaxStyle.fromStyles({
   string:  { fg: RGBA.fromHex("#9ece6a") },
@@ -137,10 +144,12 @@ function ExplorerScreen({
   apiKey,
   subdomain,
   onSubdomainChange,
+  onLogout,
 }: {
   apiKey: string;
   subdomain: string;
   onSubdomainChange: (sub: string) => void;
+  onLogout: () => void;
 }) {
   const [endpointIdx, setEndpointIdx] = useState(0);
   const [methodIdx, setMethodIdx] = useState(0);
@@ -281,7 +290,23 @@ function ExplorerScreen({
       if (key.name === "down") { setAcIdx((i: number) => Math.min(suggestions.length - 1, i + 1)); return; }
     }
 
+    if (key.ctrl && key.name === "o" && result) {
+      const tmpFile = join(tmpdir(), `nex-result-${Date.now()}.json`);
+      try {
+        writeFileSync(tmpFile, result, "utf8");
+        cliRenderer!.suspend();
+        try {
+          spawnSync(process.env["PAGER"] ?? "less", ["-R", tmpFile], { stdio: "inherit" });
+        } finally {
+          cliRenderer!.resume();
+        }
+      } finally {
+        try { unlinkSync(tmpFile); } catch { /* ignore */ }
+      }
+      return;
+    }
     if (key.ctrl && key.name === "r") runCall();
+    if (key.ctrl && key.name === "l") { onLogout(); return; }
     if (key.ctrl && key.name === "s") {
       setSubdomainDraft(subdomain);
       setEditingSubdomain(true);
@@ -339,7 +364,7 @@ function ExplorerScreen({
         <text fg="#565f89">
           {editingSubdomain
             ? "[Enter] save  [Esc] cancel"
-            : "[Tab] panels  [Ctrl+R] run  [Ctrl+S] subdomain  [Ctrl+C] quit"}
+            : "[Tab] panels  [Ctrl+R] run  [Ctrl+S] subdomain  [Ctrl+L] logout  [Ctrl+C] quit"}
         </text>
       </box>
 
@@ -504,7 +529,7 @@ function ExplorerScreen({
             title={
               loading ? " Loading... " :
               error   ? " Error " :
-              result  ? ` ${selectedEndpoint}.${selectedMethod}() ` :
+              result  ? ` ${selectedEndpoint}.${selectedMethod}()  [Ctrl+O] open in pager ` :
                         " Result "
             }
             border
@@ -537,20 +562,29 @@ function ExplorerScreen({
 // ─── Root ──────────────────────────────────────────────────────────────────────
 
 function App() {
-  const [screen, setScreen] = useState<"config" | "main">("config");
-  const [apiKey, setApiKey] = useState("");
-  const [subdomain, setSubdomain] = useState("");
+  const saved = loadConfig();
+  const [screen, setScreen] = useState<"config" | "main">(saved ? "main" : "config");
+  const [apiKey, setApiKey] = useState(saved?.apiKey ?? "");
+  const [subdomain, setSubdomain] = useState(saved?.subdomain ?? "");
 
   const handleStart = useCallback((key: string, sub: string) => {
+    saveConfig({ apiKey: key, subdomain: sub });
     setApiKey(key);
     setSubdomain(sub);
     setScreen("main");
   }, []);
 
+  const handleLogout = useCallback(() => {
+    clearConfig();
+    setApiKey("");
+    setSubdomain("");
+    setScreen("config");
+  }, []);
+
   return screen === "config"
     ? <ConfigScreen onStart={handleStart} />
-    : <ExplorerScreen apiKey={apiKey} subdomain={subdomain} onSubdomainChange={setSubdomain} />;
+    : <ExplorerScreen apiKey={apiKey} subdomain={subdomain} onSubdomainChange={setSubdomain} onLogout={handleLogout} />;
 }
 
-const renderer = await createCliRenderer({ exitOnCtrlC: true });
-createRoot(renderer).render(<App />);
+cliRenderer = await createCliRenderer({ exitOnCtrlC: true });
+createRoot(cliRenderer).render(<App />);

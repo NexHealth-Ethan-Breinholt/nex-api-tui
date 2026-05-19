@@ -86,11 +86,13 @@ export const QUERY_PARAMS: Record<string, Record<string, string[]>> = {
  *   {"a": 1     → null  (cursor is in value context)
  */
 export function getKeyPrefix(value: string): string | null {
+  // Strip trailing close-brace/quote/whitespace so auto-closed `{}` or `""}` doesn't break matching.
+  const trimmed = value.replace(/["}\s]+$/, "");
   // After { or , (optionally whitespace), then an opening " and any letters/underscores up to end
-  const keyMatch = value.match(/[{,]\s*"([a-z_]*)$/);
+  const keyMatch = trimmed.match(/[{,]\s*"([a-z_]*)$/);
   if (keyMatch) return keyMatch[1] ?? "";
   // Right after { or , with no quote yet — still show all
-  if (/[{,]\s*$/.test(value)) return "";
+  if (/[{,]\s*$/.test(trimmed)) return "";
   return null;
 }
 
