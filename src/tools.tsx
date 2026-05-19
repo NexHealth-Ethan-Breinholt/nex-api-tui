@@ -340,7 +340,7 @@ export function BookAppointmentTool({ apiKey, subdomain }: { apiKey: string; sub
             focused={focus === "providers"}
             options={providerOptions}
             selectedIndex={providerIdx}
-            showDescription={false}
+            showDescription
             showScrollIndicator
             wrapSelection={false}
             onChange={(idx) => setProviderIdx(idx)}
@@ -348,6 +348,8 @@ export function BookAppointmentTool({ apiKey, subdomain }: { apiKey: string; sub
             focusedBackgroundColor="#1a1b26"
             selectedBackgroundColor="#283457"
             selectedTextColor="#7aa2f7"
+            descriptionColor="#565f89"
+            selectedDescriptionColor="#7aa2f7"
             style={{ flexGrow: 1 }}
           />
         </box>
@@ -360,7 +362,7 @@ export function BookAppointmentTool({ apiKey, subdomain }: { apiKey: string; sub
             focused={focus === "operatories"}
             options={operatoryOptions}
             selectedIndex={operatoryIdx}
-            showDescription={false}
+            showDescription
             showScrollIndicator
             wrapSelection={false}
             onChange={(idx) => setOperatoryIdx(idx)}
@@ -368,6 +370,8 @@ export function BookAppointmentTool({ apiKey, subdomain }: { apiKey: string; sub
             focusedBackgroundColor="#1a1b26"
             selectedBackgroundColor="#283457"
             selectedTextColor="#7aa2f7"
+            descriptionColor="#565f89"
+            selectedDescriptionColor="#7aa2f7"
             style={{ flexGrow: 1 }}
           />
         </box>
@@ -380,7 +384,7 @@ export function BookAppointmentTool({ apiKey, subdomain }: { apiKey: string; sub
             focused={focus === "apptTypes"}
             options={apptTypeOptions}
             selectedIndex={apptTypeIdx}
-            showDescription={false}
+            showDescription
             showScrollIndicator
             wrapSelection={false}
             onChange={(idx) => setApptTypeIdx(idx)}
@@ -388,6 +392,8 @@ export function BookAppointmentTool({ apiKey, subdomain }: { apiKey: string; sub
             focusedBackgroundColor="#1a1b26"
             selectedBackgroundColor="#283457"
             selectedTextColor="#7aa2f7"
+            descriptionColor="#565f89"
+            selectedDescriptionColor="#7aa2f7"
             style={{ flexGrow: 1 }}
           />
         </box>
@@ -406,7 +412,7 @@ export function BookAppointmentTool({ apiKey, subdomain }: { apiKey: string; sub
         }
         border borderStyle="single"
         borderColor={error || fetchError ? "#f7768e" : result ? "#9ece6a" : "#414868"}
-        style={{ height: 7, flexShrink: 0 }}
+        style={{ height: 18, flexShrink: 0 }}
       >
         <scrollbox focused={false} style={{ flexGrow: 1 }}>
           {(loading || fetchLoading) && <text fg="#565f89">Working…</text>}
