@@ -779,25 +779,38 @@ export function ToolsScreen({
   apiKey,
   subdomain,
   onSubdomainChange,
+  onApiKeyChange,
   onSwitchToExplorer,
 }: {
   apiKey:              string;
   subdomain:           string;
   onSubdomainChange:   (sub: string) => void;
+  onApiKeyChange:      (key: string) => void;
   onSwitchToExplorer:  () => void;
 }) {
-  const [toolIdx,        setToolIdx]        = useState(0);
-  const [toolsFocus,     setToolsFocus]     = useState<ToolsFocus>("list");
+  const [toolIdx,          setToolIdx]          = useState(0);
+  const [toolsFocus,       setToolsFocus]       = useState<ToolsFocus>("list");
   const [editingSubdomain, setEditingSubdomain] = useState(false);
   const [subdomainDraft,   setSubdomainDraft]   = useState(subdomain);
+  const [editingApiKey,    setEditingApiKey]    = useState(false);
+  const [apiKeyDraft,      setApiKeyDraft]      = useState(apiKey);
+
+  const maskedKey = apiKey.length > 8
+    ? `${apiKey.slice(0, 4)}...${apiKey.slice(-4)}`
+    : "••••";
 
   useKeyboard((key) => {
     if (editingSubdomain) {
       if (key.name === "escape") { setSubdomainDraft(subdomain); setEditingSubdomain(false); }
       return;
     }
+    if (editingApiKey) {
+      if (key.name === "escape") { setApiKeyDraft(apiKey); setEditingApiKey(false); }
+      return;
+    }
     if (key.ctrl && key.name === "t") { onSwitchToExplorer(); return; }
     if (key.ctrl && key.name === "s") { setSubdomainDraft(subdomain); setEditingSubdomain(true); return; }
+    if (key.ctrl && key.name === "k") { setApiKeyDraft(apiKey); setEditingApiKey(true); return; }
     if (toolsFocus === "list") {
       if (key.name === "up")    { setToolIdx((i: number) => Math.max(0, i - 1)); return; }
       if (key.name === "down")  { setToolIdx((i: number) => Math.min(TOOLS.length - 1, i + 1)); return; }
@@ -819,6 +832,20 @@ export function ToolsScreen({
       >
         <text fg={THEME.accent}>NexHealth Tools</text>
         <text fg={THEME.dim}>  |  </text>
+        <text fg={THEME.muted}>key: </text>
+        {editingApiKey ? (
+          <input
+            key="apikey-edit"
+            placeholder="API key..."
+            focused
+            onInput={setApiKeyDraft}
+            onSubmit={() => { onApiKeyChange(apiKeyDraft.trim()); setEditingApiKey(false); }}
+            style={{ width: 28 }}
+          />
+        ) : (
+          <text fg={THEME.success}>{maskedKey}</text>
+        )}
+        <text fg={THEME.dim}>  |  </text>
         <text fg={THEME.muted}>subdomain: </text>
         {editingSubdomain ? (
           <input
@@ -834,9 +861,9 @@ export function ToolsScreen({
         )}
         <text fg={THEME.dim}>  |  </text>
         <text fg={THEME.muted}>
-          {editingSubdomain
+          {editingApiKey || editingSubdomain
             ? "[Enter] save  [Esc] cancel"
-            : "[Tab] next field  [Ctrl+L] fetch  [Ctrl+R] run  [Ctrl+S] subdomain  [Ctrl+T] explorer  [Ctrl+C] quit"}
+            : "[Tab] next field  [Ctrl+L] fetch  [Ctrl+R] run  [Ctrl+K] api key  [Ctrl+S] subdomain  [Ctrl+T] explorer  [Ctrl+C] quit"}
         </text>
       </box>
 

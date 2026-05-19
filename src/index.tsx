@@ -164,12 +164,14 @@ function ExplorerScreen({
   apiKey,
   subdomain,
   onSubdomainChange,
+  onApiKeyChange,
   onLogout,
   onSwitchToTools,
 }: {
   apiKey: string;
   subdomain: string;
   onSubdomainChange: (sub: string) => void;
+  onApiKeyChange: (key: string) => void;
   onLogout: () => void;
   onSwitchToTools: () => void;
 }) {
@@ -179,6 +181,8 @@ function ExplorerScreen({
   const [focus, setFocus] = useState<FocusArea>("endpoints");
   const [editingSubdomain, setEditingSubdomain] = useState(false);
   const [subdomainDraft, setSubdomainDraft] = useState(subdomain);
+  const [editingApiKey, setEditingApiKey] = useState(false);
+  const [apiKeyDraft, setApiKeyDraft] = useState(apiKey);
   const [parentIdParam, setParentIdParam] = useState("");
   const [idParam, setIdParam] = useState("");
   const [queryParam, setQueryParam] = useState("");
@@ -351,10 +355,11 @@ function ExplorerScreen({
 
   useKeyboard((key) => {
     if (editingSubdomain) {
-      if (key.name === "escape") {
-        setSubdomainDraft(subdomain);
-        setEditingSubdomain(false);
-      }
+      if (key.name === "escape") { setSubdomainDraft(subdomain); setEditingSubdomain(false); }
+      return;
+    }
+    if (editingApiKey) {
+      if (key.name === "escape") { setApiKeyDraft(apiKey); setEditingApiKey(false); }
       return;
     }
 
@@ -402,10 +407,8 @@ function ExplorerScreen({
     if (key.ctrl && key.name === "r") runCall();
     if (key.ctrl && key.name === "l") { onLogout(); return; }
     if (key.ctrl && key.name === "t") { onSwitchToTools(); return; }
-    if (key.ctrl && key.name === "s") {
-      setSubdomainDraft(subdomain);
-      setEditingSubdomain(true);
-    }
+    if (key.ctrl && key.name === "s") { setSubdomainDraft(subdomain); setEditingSubdomain(true); }
+    if (key.ctrl && key.name === "k") { setApiKeyDraft(apiKey); setEditingApiKey(true); }
   });
 
   const endpointOptions = activeEndpointNames.map((k) => {
@@ -442,7 +445,18 @@ function ExplorerScreen({
         <text fg={THEME.accent}>NexHealth API Explorer</text>
         <text fg={THEME.dim}>  |  </text>
         <text fg={THEME.muted}>key: </text>
-        <text fg={THEME.success}>{maskedKey}</text>
+        {editingApiKey ? (
+          <input
+            key="apikey-edit"
+            placeholder="API key..."
+            focused
+            onInput={setApiKeyDraft}
+            onSubmit={() => { onApiKeyChange(apiKeyDraft.trim()); setEditingApiKey(false); }}
+            style={{ width: 28 }}
+          />
+        ) : (
+          <text fg={THEME.success}>{maskedKey}</text>
+        )}
         <text fg={THEME.dim}>  |  </text>
         <text fg={THEME.muted}>subdomain: </text>
         {editingSubdomain ? (
@@ -451,10 +465,7 @@ function ExplorerScreen({
             placeholder="subdomain..."
             focused
             onInput={setSubdomainDraft}
-            onSubmit={() => {
-              onSubdomainChange(subdomainDraft.trim());
-              setEditingSubdomain(false);
-            }}
+            onSubmit={() => { onSubdomainChange(subdomainDraft.trim()); setEditingSubdomain(false); }}
             style={{ width: 20 }}
           />
         ) : (
@@ -462,9 +473,9 @@ function ExplorerScreen({
         )}
         <text fg={THEME.dim}>  |  </text>
         <text fg={THEME.muted}>
-          {editingSubdomain
+          {editingApiKey || editingSubdomain
             ? "[Enter] save  [Esc] cancel"
-            : "[Tab] panels  [←→] version  [Ctrl+R] run  [Ctrl+S] subdomain  [Ctrl+T] tools  [Ctrl+C] quit"}
+            : "[Tab] panels  [←→] version  [Ctrl+R] run  [Ctrl+K] api key  [Ctrl+S] subdomain  [Ctrl+T] tools  [Ctrl+C] quit"}
         </text>
       </box>
 
@@ -712,8 +723,8 @@ function App() {
   }, []);
 
   if (screen === "config")    return <ConfigScreen onStart={handleStart} />;
-  if (screen === "tools")     return <ToolsScreen apiKey={apiKey} subdomain={subdomain} onSubdomainChange={setSubdomain} onSwitchToExplorer={() => setScreen("explorer")} />;
-  return <ExplorerScreen apiKey={apiKey} subdomain={subdomain} onSubdomainChange={setSubdomain} onLogout={handleLogout} onSwitchToTools={() => setScreen("tools")} />;
+  if (screen === "tools")     return <ToolsScreen apiKey={apiKey} subdomain={subdomain} onSubdomainChange={setSubdomain} onApiKeyChange={setApiKey} onSwitchToExplorer={() => setScreen("explorer")} />;
+  return <ExplorerScreen apiKey={apiKey} subdomain={subdomain} onSubdomainChange={setSubdomain} onApiKeyChange={setApiKey} onLogout={handleLogout} onSwitchToTools={() => setScreen("tools")} />;
 }
 
 cliRenderer = await createCliRenderer({ exitOnCtrlC: true });
