@@ -1,5 +1,5 @@
-import { createCliRenderer, SyntaxStyle, RGBA, type CliRenderer } from "@opentui/core";
-import { createRoot, useKeyboard } from "@opentui/react";
+import { createCliRenderer, type CliRenderer } from "@opentui/core";
+import { JSON_SYNTAX_STYLE } from "./theme.js";import { createRoot, useKeyboard } from "@opentui/react";
 import { NexHealthClient, NexHealthAPIError } from "nexhealth-js-sdk";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { QUERY_PARAMS, V2024_ENDPOINTS, V2024_QUERY_PARAMS, getKeyPrefix, insertSuggestion } from "./params.js";
@@ -12,12 +12,6 @@ import { join } from "path";
 
 let cliRenderer: CliRenderer | null = null;
 
-const JSON_SYNTAX_STYLE = SyntaxStyle.fromStyles({
-  string:  { fg: RGBA.fromHex("#9ece6a") },
-  number:  { fg: RGBA.fromHex("#ff9e64") },
-  keyword: { fg: RGBA.fromHex("#bb9af7") },
-  default: { fg: RGBA.fromHex("#a9b1d6") },
-});
 
 // ─── Endpoint / method definitions ────────────────────────────────────────────
 
@@ -680,7 +674,7 @@ function ExplorerScreen({
                 </text>
               )}
               {!loading && error && <text fg="#f7768e">{error}</text>}
-              {!loading && result && <code content={result} filetype="json" syntaxStyle={JSON_SYNTAX_STYLE} />}
+              {!loading && result && <code content={result} filetype="javascript" syntaxStyle={JSON_SYNTAX_STYLE} />}
               {!loading && !result && !error && (
                 <text fg="#414868">
                   Select an endpoint and method, then press [Ctrl+R] to run.
