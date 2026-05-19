@@ -471,7 +471,7 @@ function ExplorerScreen({
           borderStyle="single"
           borderColor={focus === "endpoints" ? "#7aa2f7" : "#414868"}
           flexDirection="column"
-          style={{ width: 28, flexShrink: 0 }}
+          style={{ width: 30, flexShrink: 0 }}
         >
           <box flexDirection="row" style={{ height: 1, flexShrink: 0, paddingLeft: 1 }}>
             <text fg={apiVersion === "v2" ? "#7aa2f7" : "#565f89"}>v2</text>
