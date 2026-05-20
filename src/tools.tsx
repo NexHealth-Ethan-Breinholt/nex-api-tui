@@ -801,7 +801,7 @@ export function WebhookListenerTool({ apiKey, subdomain, onBackToList, active, o
   const [focus, setFocus] = useState<WhFocus>("port");
   const activeFocus = active ? focus : null;
 
-  const [port,       setPort]       = useState("3000");
+  const [port,       setPort]       = useState("80");
   const [rtIdx,      setRtIdx]      = useState(0);
   const [evIdx,      setEvIdx]      = useState(0);
   const [state,      setState]      = useState<ListenerState>("idle");
