@@ -91,7 +91,7 @@ export function BookAppointmentTool({ apiKey, subdomain, onBackToList, active, o
   const [patientId,   setPatientId]   = useState("");
   const [startDate,   setStartDate]   = useState(todayISO());
   const [startTime,   setStartTime]   = useState("09:00");
-  const [durationStr, setDurationStr] = useState("60");
+  const [durationStr, setDurationStr] = useState("");
 
   // Optional — text/number
   const [note,         setNote]         = useState("");
@@ -187,6 +187,8 @@ export function BookAppointmentTool({ apiKey, subdomain, onBackToList, active, o
 
     const operatory = operatoryIdx > 0 ? operatories[operatoryIdx - 1] : undefined;
     const apptType  = apptTypeIdx  > 0 ? apptTypes[apptTypeIdx - 1]   : undefined;
+
+    if (!apptType && !endTime) { setError("Enter a duration or select an appointment type"); return; }
 
     const startISO = `${startDate}T${startTime}:00`;
     const endISO   = endTime ? `${startDate}T${endTime}:00` : undefined;
@@ -315,10 +317,12 @@ export function BookAppointmentTool({ apiKey, subdomain, onBackToList, active, o
         <Field label="Patient ID"   width={11} value={patientId}   focused={activeFocus === "patient"}   placeholder="456"        onInput={setPatientId}   onSubmit={() => nextFocus("date")} />
         <Field label="Start Date"   width={16} value={startDate}   focused={activeFocus === "date"}      placeholder="YYYY-MM-DD" onInput={setStartDate}   onSubmit={() => nextFocus("time")} />
         <Field label="Start Time"   width={12} value={startTime}   focused={activeFocus === "time"}      placeholder="HH:MM"      onInput={setStartTime}   onSubmit={() => nextFocus("duration")} />
-        <Field label="Dur (min)"    width={9}  value={durationStr} focused={activeFocus === "duration"}  placeholder="60"         onInput={setDurationStr} onSubmit={() => nextFocus("note")} />
+        <Field label={apptTypeIdx > 0 ? "Dur (min)" : "Dur (min) *"} width={11} value={durationStr} focused={activeFocus === "duration"} placeholder="60" onInput={setDurationStr} onSubmit={() => nextFocus("note")} fg={apptTypeIdx > 0 ? THEME.muted : undefined} />
         <box flexDirection="column" justifyContent="flex-end" style={{ paddingBottom: 1, flexShrink: 0 }}>
-          <text fg={THEME.muted}>→ </text>
-          <text fg={endTime ? THEME.success : THEME.dim}>{endTime || "--:--"}</text>
+          {apptTypeIdx > 0 && !durationStr
+            ? <text fg={THEME.muted}>(from type)</text>
+            : <><text fg={THEME.muted}>→ </text><text fg={endTime ? THEME.success : THEME.dim}>{endTime || "--:--"}</text></>
+          }
         </box>
       </box>
 
