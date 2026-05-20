@@ -49,6 +49,17 @@ function ib(active: boolean): string {  // input border color
   return active ? THEME.accent : THEME.dim;
 }
 
+// ─── Tool props ───────────────────────────────────────────────────────────────
+
+type ToolProps = {
+  apiKey:          string;
+  subdomain:       string;
+  onBackToList:    () => void;
+  active:          boolean;
+  onEditSubdomain: () => void;
+  onEditApiKey:    () => void;
+};
+
 // ─── Focus cycle ──────────────────────────────────────────────────────────────
 
 type BookingFocus =
@@ -70,7 +81,7 @@ const FOCUS_CYCLE: BookingFocus[] = [
 
 // ─── Book Appointment Tool ────────────────────────────────────────────────────
 
-export function BookAppointmentTool({ apiKey, subdomain, onBackToList, active }: { apiKey: string; subdomain: string; onBackToList: () => void; active: boolean }) {
+export function BookAppointmentTool({ apiKey, subdomain, onBackToList, active, onEditSubdomain, onEditApiKey }: ToolProps) {
   const [focus, setFocus] = useState<BookingFocus>("location");
   const activeFocus = active ? focus : null;
   const [inputKey, setInputKey] = useState(0);
@@ -235,6 +246,8 @@ export function BookAppointmentTool({ apiKey, subdomain, onBackToList, active }:
 
   // ── Keyboard ──────────────────────────────────────────────────────────────
   useKeyboard((key) => {
+    if (key.ctrl && key.name === "s") { onEditSubdomain(); return; }
+    if (key.ctrl && key.name === "k") { onEditApiKey();    return; }
     if (!active) return;
     if (key.name === "tab" && !key.shift) { advanceFocus(); return; }
     if (key.name === "tab" &&  key.shift) { retreatFocus(); return; }
@@ -441,7 +454,7 @@ const SLOTS_FOCUS_CYCLE: SlotsFocus[] = [
   "providers", "operatories", "apptTypes",
 ];
 
-export function AvailableSlotsTool({ apiKey, subdomain, onBackToList, active }: { apiKey: string; subdomain: string; onBackToList: () => void; active: boolean }) {
+export function AvailableSlotsTool({ apiKey, subdomain, onBackToList, active, onEditSubdomain, onEditApiKey }: ToolProps) {
   const [focus, setFocus] = useState<SlotsFocus>("location");
   const activeFocus = active ? focus : null;
   const [inputKey] = useState(0);
@@ -573,6 +586,8 @@ export function AvailableSlotsTool({ apiKey, subdomain, onBackToList, active }: 
   ]);
 
   useKeyboard((key) => {
+    if (key.ctrl && key.name === "s") { onEditSubdomain(); return; }
+    if (key.ctrl && key.name === "k") { onEditApiKey();    return; }
     if (!active) return;
     if (key.name === "tab" && !key.shift) { advanceFocus(); return; }
     if (key.name === "tab" &&  key.shift) { retreatFocus(); return; }
@@ -782,7 +797,7 @@ const WH_EVENTS_BY_TYPE: Record<string, string[]> = {
   SyncStatus:               ["sync_status_read_change", "sync_status_write_change"],
 };
 
-export function WebhookListenerTool({ apiKey, subdomain, onBackToList, active }: { apiKey: string; subdomain: string; onBackToList: () => void; active: boolean }) {
+export function WebhookListenerTool({ apiKey, subdomain, onBackToList, active, onEditSubdomain, onEditApiKey }: ToolProps) {
   const [focus, setFocus] = useState<WhFocus>("port");
   const activeFocus = active ? focus : null;
 
@@ -940,6 +955,8 @@ export function WebhookListenerTool({ apiKey, subdomain, onBackToList, active }:
   }, []);
 
   useKeyboard((key) => {
+    if (key.ctrl && key.name === "s") { onEditSubdomain(); return; }
+    if (key.ctrl && key.name === "k") { onEditApiKey();    return; }
     if (!active) return;
     if (key.name === "tab" && !key.shift) { advanceFocus(); return; }
     if (key.name === "tab" &&  key.shift) { retreatFocus(); return; }
@@ -1077,18 +1094,243 @@ export function WebhookListenerTool({ apiKey, subdomain, onBackToList, active }:
   );
 }
 
+// ─── Slots per Operatory Tool ─────────────────────────────────────────────────
+
+type SlotCountFocus = "location" | "date" | "duration" | "operatories";
+const SLOT_COUNT_CYCLE: SlotCountFocus[] = ["location", "date", "duration", "operatories"];
+
+export function SlotCountTool({ apiKey, subdomain, onBackToList, active, onEditSubdomain, onEditApiKey }: ToolProps) {
+  const [focus, setFocus] = useState<SlotCountFocus>("location");
+  const activeFocus = active ? focus : null;
+
+  const [locationId, setLocationId] = useState("");
+  const [startDate,  setStartDate]  = useState(todayISO());
+  const [duration,   setDuration]   = useState("60");
+
+  const [providers,    setProviders]    = useState<ProviderRow[]>([]);
+  const [operatories,  setOperatories]  = useState<OperatoryRow[]>([]);
+  const [fetchLoading, setFetchLoading] = useState(false);
+  const [fetchError,   setFetchError]   = useState<string | null>(null);
+
+  const [operatoryIdx, setOperatoryIdx] = useState(0);
+
+  const [result,  setResult]  = useState<string | null>(null);
+  const [error,   setError]   = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const advanceFocus = useCallback(() => {
+    setFocus((f: SlotCountFocus) => {
+      const idx = SLOT_COUNT_CYCLE.indexOf(f);
+      return SLOT_COUNT_CYCLE[(idx + 1) % SLOT_COUNT_CYCLE.length] ?? "location";
+    });
+  }, []);
+
+  const retreatFocus = useCallback(() => {
+    setFocus((f: SlotCountFocus) => {
+      const idx = SLOT_COUNT_CYCLE.indexOf(f);
+      if (idx === 0) { onBackToList(); return f; }
+      return SLOT_COUNT_CYCLE[idx - 1] ?? SLOT_COUNT_CYCLE[0]!;
+    });
+  }, [onBackToList]);
+
+  const fetchAll = useCallback(async () => {
+    const locId = parseInt(locationId, 10);
+    if (isNaN(locId)) { setFetchError("Enter a valid Location ID first"); return; }
+    setFetchLoading(true);
+    setFetchError(null);
+    setResult(null);
+    setError(null);
+    try {
+      const client = new NexHealthClient({ apiKey, subdomain: subdomain || undefined });
+      const [provRes, opRes] = await Promise.all([
+        client.v2024.providers.listAll({ location_id: locId }),
+        client.v2024.operatories.listAll({ location_id: locId }),
+      ]);
+      const ops = (opRes.data ?? []) as OperatoryRow[];
+      setProviders((provRes.data ?? []) as ProviderRow[]);
+      setOperatories(ops);
+      setOperatoryIdx(ops.length > 0 ? 1 : 0);
+    } catch (err) {
+      setFetchError(err instanceof NexHealthAPIError ? `HTTP ${err.status}: ${err.message}` : String(err));
+    } finally {
+      setFetchLoading(false);
+    }
+  }, [apiKey, subdomain, locationId]);
+
+  const count = useCallback(async () => {
+    const locId = parseInt(locationId, 10);
+    if (isNaN(locId))        { setError("Location ID is required"); return; }
+    if (!startDate)          { setError("Date is required"); return; }
+    if (providers.length === 0) { setError("Fetch providers first (Ctrl+L)"); return; }
+    const operatory = operatoryIdx > 0 ? operatories[operatoryIdx - 1] : undefined;
+    if (!operatory)          { setError("Select an operatory"); return; }
+
+    setLoading(true);
+    setResult(null);
+    setError(null);
+    try {
+      const client = new NexHealthClient({ apiKey, subdomain: subdomain || undefined });
+      const durationMin = parseInt(duration, 10);
+      const resp = await client.v2024.availableSlots.list({
+        start_date: startDate,
+        days: 1,
+        lids: [locId],
+        pids: providers.map(p => p.id),
+        operatory_ids: [operatory.id],
+        ...(isNaN(durationMin) ? {} : { slot_length: durationMin }),
+      });
+
+      type SlotEntry = { pid: number | null; slots: unknown[] };
+      const entries = ((resp as unknown as { data: SlotEntry[] }).data ?? []);
+
+      const breakdown = entries
+        .map(r => {
+          const prov = providers.find(p => p.id === r.pid);
+          const name = prov ? `${prov.first_name} ${prov.last_name}` : `Provider ${r.pid ?? "?"}`;
+          return { name, count: r.slots.length };
+        })
+        .filter(r => r.count > 0)
+        .sort((a, b) => b.count - a.count);
+
+      const total = breakdown.reduce((s, r) => s + r.count, 0);
+      const divider = "─".repeat(44);
+      const lines = [
+        `Total: ${total} slot${total !== 1 ? "s" : ""}  ·  ${startDate}  ·  ${operatory.name}`,
+        divider,
+        ...(breakdown.length > 0
+          ? breakdown.map(r => `${r.name.padEnd(30)}  ${String(r.count).padStart(3)} slot${r.count !== 1 ? "s" : ""}`)
+          : ["No available slots found for any provider"]),
+      ];
+      setResult(lines.join("\n"));
+    } catch (err) {
+      setError(err instanceof NexHealthAPIError
+        ? [`HTTP ${err.status}: ${err.message}`, ...(err.errors ?? [])].join("\n")
+        : String(err));
+    } finally {
+      setLoading(false);
+    }
+  }, [apiKey, subdomain, locationId, startDate, duration, providers, operatories, operatoryIdx]);
+
+  useKeyboard((key) => {
+    if (key.ctrl && key.name === "s") { onEditSubdomain(); return; }
+    if (key.ctrl && key.name === "k") { onEditApiKey();    return; }
+    if (!active) return;
+    if (key.name === "tab" && !key.shift) { advanceFocus(); return; }
+    if (key.name === "tab" &&  key.shift) { retreatFocus(); return; }
+    if (key.ctrl && key.name === "l") { fetchAll(); return; }
+    if (key.ctrl && key.name === "r") { count();    return; }
+  });
+
+  const operatoryOptions = operatories.length > 0
+    ? [
+        { name: "(none)", description: "", value: null },
+        ...operatories.map(o => ({ name: o.name, description: `ID: ${o.id}`, value: o.id })),
+      ]
+    : [{ name: fetchLoading ? "Fetching…" : "(none — Ctrl+L to fetch)", description: "", value: null }];
+
+  const inRequired = active && (["location", "date", "duration"] as SlotCountFocus[]).includes(focus);
+
+  const Field = ({
+    label, width, value, focused, placeholder, onInput, onSubmit,
+  }: {
+    label: string; width?: number; value: string; focused: boolean;
+    placeholder: string; onInput: (v: string) => void; onSubmit: () => void;
+  }) => (
+    <box flexDirection="column" style={{ ...(width ? { width, flexShrink: 0 } : { flexGrow: 1 }) }}>
+      <text fg={focused ? THEME.accent : THEME.muted}>{label}</text>
+      <box border borderStyle="single" borderColor={ib(focused)} style={{ height: 3 }}>
+        <input value={value} placeholder={placeholder} focused={focused} onInput={onInput} onSubmit={onSubmit} />
+      </box>
+    </box>
+  );
+
+  return (
+    <box flexDirection="column" flexGrow={1}>
+
+      {/* ── Required params ──────────────────────────────────────────── */}
+      <box
+        title=" Required "
+        border borderStyle="single"
+        borderColor={inRequired ? THEME.accent : THEME.dim}
+        flexDirection="row"
+        style={{ flexShrink: 0, gap: 1, paddingLeft: 1, paddingRight: 1 }}
+      >
+        <Field label="Location ID"   width={13} value={locationId} focused={activeFocus === "location"} placeholder="123"        onInput={setLocationId} onSubmit={() => setFocus("date")} />
+        <Field label="Date"          width={16} value={startDate}  focused={activeFocus === "date"}     placeholder="YYYY-MM-DD" onInput={setStartDate}  onSubmit={() => setFocus("duration")} />
+        <Field label="Duration (min)" width={15} value={duration}   focused={activeFocus === "duration"} placeholder="60"         onInput={setDuration}   onSubmit={() => setFocus("operatories")} />
+        <box flexDirection="column" justifyContent="flex-end" style={{ paddingBottom: 1, flexShrink: 0 }}>
+          <text fg={THEME.dim}>{providers.length > 0 ? `${providers.length} provider${providers.length !== 1 ? "s" : ""} loaded` : "Ctrl+L to fetch"}</text>
+        </box>
+      </box>
+
+      {/* ── Operatory selector ───────────────────────────────────────── */}
+      <box flexDirection="row" flexGrow={1}>
+        <box
+          title=" Operatory "
+          border borderStyle="single"
+          borderColor={activeFocus === "operatories" ? THEME.accent : THEME.dim}
+          style={{ flexGrow: 1 }}
+        >
+          <select
+            focused={activeFocus === "operatories"}
+            options={operatoryOptions}
+            selectedIndex={operatoryIdx}
+            showDescription
+            showScrollIndicator
+            wrapSelection={false}
+            onChange={(idx) => setOperatoryIdx(idx)}
+            textColor={THEME.text}
+            focusedBackgroundColor={THEME.listFocusedBg}
+            selectedBackgroundColor={THEME.listSelectedBg}
+            selectedTextColor={THEME.accent}
+            descriptionColor={THEME.muted}
+            selectedDescriptionColor={THEME.accent}
+            style={{ flexGrow: 1 }}
+          />
+        </box>
+      </box>
+
+      {/* ── Result ───────────────────────────────────────────────────── */}
+      <box
+        title={
+          loading      ? " Counting… " :
+          error        ? " Error " :
+          result       ? " Slot Count " :
+          fetchError   ? " Fetch Error " :
+          fetchLoading ? " Fetching… " :
+                         " Result "
+        }
+        border borderStyle="single"
+        borderColor={error || fetchError ? THEME.error : result ? THEME.success : THEME.dim}
+        style={{ height: 18, flexShrink: 0 }}
+      >
+        <scrollbox focused={false} style={{ flexGrow: 1 }}>
+          {(loading || fetchLoading) && <text fg={THEME.muted}>Working…</text>}
+          {!loading && !fetchLoading && fetchError && <text fg={THEME.error}>{fetchError}</text>}
+          {!loading && !fetchLoading && error       && <text fg={THEME.error}>{error}</text>}
+          {!loading && !fetchLoading && result      && <text fg={THEME.success}>{result}</text>}
+          {!loading && !fetchLoading && !result && !error && !fetchError && (
+            <text fg={THEME.dim}>Enter location + date · [Ctrl+L] fetch · select operatory · [Ctrl+R] count slots</text>
+          )}
+        </scrollbox>
+      </box>
+
+    </box>
+  );
+}
+
 // ─── Tool registry ────────────────────────────────────────────────────────────
 
-type ToolProps = { apiKey: string; subdomain: string; onBackToList: () => void; active: boolean };
 type Tool = {
   name:      string;
   component: React.FC<ToolProps>;
 };
 
 export const TOOLS: Tool[] = [
-  { name: "Book Appointment",   component: BookAppointmentTool },
-  { name: "Available Slots",    component: AvailableSlotsTool },
-  { name: "Webhook Listener",   component: WebhookListenerTool },
+  { name: "Book Appointment",    component: BookAppointmentTool },
+  { name: "Available Slots",     component: AvailableSlotsTool },
+  { name: "Webhook Listener",    component: WebhookListenerTool },
+  { name: "Slots per Operatory", component: SlotCountTool },
 ];
 
 // ─── Tools Screen ─────────────────────────────────────────────────────────────
@@ -1212,7 +1454,14 @@ export function ToolsScreen({
         </box>
 
         {/* Active tool */}
-        {React.createElement(selected.component, { apiKey, subdomain, onBackToList: () => setToolsFocus("list"), active: toolsFocus === "tool" })}
+        {React.createElement(selected.component, {
+          apiKey,
+          subdomain,
+          onBackToList:    () => setToolsFocus("list"),
+          active:          toolsFocus === "tool",
+          onEditSubdomain: () => { setSubdomainDraft(subdomain); setEditingSubdomain(true); },
+          onEditApiKey:    () => { setApiKeyDraft(apiKey);       setEditingApiKey(true); },
+        })}
 
       </box>
     </box>
