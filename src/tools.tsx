@@ -84,7 +84,7 @@ const FOCUS_CYCLE: BookingFocus[] = [
 export function BookAppointmentTool({ apiKey, subdomain, onBackToList, active, onEditSubdomain, onEditApiKey }: ToolProps) {
   const [focus, setFocus] = useState<BookingFocus>("location");
   const activeFocus = active ? focus : null;
-  const [inputKey, setInputKey] = useState(0);
+  const [inputKey] = useState(0);
 
   // Required fields
   const [locationId,  setLocationId]  = useState("");
@@ -1327,10 +1327,10 @@ type Tool = {
 };
 
 export const TOOLS: Tool[] = [
-  { name: "Book Appointment",    component: BookAppointmentTool },
   { name: "Available Slots",     component: AvailableSlotsTool },
-  { name: "Webhook Listener",    component: WebhookListenerTool },
+  { name: "Book Appointment",    component: BookAppointmentTool },
   { name: "Slots per Operatory", component: SlotCountTool },
+  { name: "Webhook Listener",    component: WebhookListenerTool },
 ];
 
 // ─── Tools Screen ─────────────────────────────────────────────────────────────
@@ -1436,7 +1436,7 @@ export function ToolsScreen({
           title=" Tools "
           border borderStyle="single"
           borderColor={toolsFocus === "list" ? THEME.accent : THEME.dim}
-          style={{ width: 22, flexShrink: 0 }}
+          style={{ width: 28, flexShrink: 0 }}
         >
           <select
             focused={toolsFocus === "list"}
