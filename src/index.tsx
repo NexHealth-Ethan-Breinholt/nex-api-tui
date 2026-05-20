@@ -3,10 +3,11 @@ import { JSON_SYNTAX_STYLE, THEME } from "./theme.js";import { createRoot, useKe
 import { NexHealthClient, NexHealthAPIError } from "nexhealth-js-sdk";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { QUERY_PARAMS, V2024_ENDPOINTS, V2024_QUERY_PARAMS, getKeyPrefix, insertSuggestion } from "./params.js";
+import { BODY_FIELDS, assembleBody, type BodyField } from "./body-fields.js";
 import { ToolsScreen } from "./tools.js";
 import { loadConfig, saveConfig, clearConfig } from "./config.js";
 import { spawnSync } from "child_process";
-import { writeFileSync, unlinkSync } from "fs";
+import { writeFileSync, readFileSync, unlinkSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 
@@ -155,6 +156,41 @@ function ConfigScreen({ onStart }: { onStart: (apiKey: string, subdomain: string
   );
 }
 
+// ─── Body input field (stateless, defined outside screen to keep identity stable) ─
+
+function BodyInputField({
+  field, isFocused, value, onChange, onSubmit, paramKey,
+}: {
+  field: BodyField;
+  isFocused: boolean;
+  value: string;
+  onChange: (v: string) => void;
+  onSubmit: () => void;
+  paramKey: number;
+}) {
+  const fkey = field.path.join(".");
+  return (
+    <box
+      flexDirection="column"
+      style={field.width ? { width: field.width, flexShrink: 0 } : { flexGrow: 1 }}
+    >
+      <text fg={isFocused ? THEME.accent : (field.required ? THEME.text : THEME.muted)}>
+        {field.label}{field.required ? " *" : ""}
+      </text>
+      <box border borderStyle="single" borderColor={isFocused ? THEME.accent : THEME.dim} style={{ height: 3 }}>
+        <input
+          key={`bf-${fkey}-${paramKey}`}
+          value={value}
+          placeholder={field.placeholder ?? ""}
+          focused={isFocused}
+          onInput={onChange}
+          onSubmit={onSubmit}
+        />
+      </box>
+    </box>
+  );
+}
+
 // ─── Explorer Screen ───────────────────────────────────────────────────────────
 
 type ApiVersion = "v2" | "v2024";
@@ -193,6 +229,8 @@ function ExplorerScreen({
   const [paramKey, setParamKey] = useState(0);
   const [acIdx, setAcIdx] = useState(0);
   const [queryInputKey, setQueryInputKey] = useState(0);
+  const [bodyValues, setBodyValues] = useState<Record<string, string>>({});
+  const [bodyFieldIdx, setBodyFieldIdx] = useState(0);
   const resultCache = useRef<Record<string, string>>({});
 
   const activeEndpoints = apiVersion === "v2" ? ENDPOINTS : V2024_ENDPOINTS;
@@ -202,6 +240,10 @@ function ExplorerScreen({
   const selectedEndpoint = activeEndpointNames[endpointIdx] ?? activeEndpointNames[0] ?? "";
   const methods = activeEndpoints[selectedEndpoint] ?? [];
   const selectedMethod = methods[methodIdx] ?? "";
+  const bodySchema = (BODY_FIELDS[apiVersion] ?? {})[selectedEndpoint]?.[selectedMethod];
+  const reqFields  = bodySchema?.filter(f => f.required) ?? [];
+  const optFields  = bodySchema?.filter(f => !f.required) ?? [];
+
   const dispatch = ENDPOINT_DISPATCH[selectedEndpoint] ?? { kind: "standard" } as DispatchType;
   const needsParentId = dispatch.kind === "parentId";
   const needsId =
@@ -235,8 +277,15 @@ function ExplorerScreen({
     setIdParam("");
     setQueryParam("");
     setBodyParam("");
+    setBodyValues({});
+    setBodyFieldIdx(0);
     setParamKey((k: number) => k + 1);
   }, [selectedEndpoint, selectedMethod]);
+
+  // Reset body field cursor when focus enters the body section
+  useEffect(() => {
+    if (focus === "body") setBodyFieldIdx(0);
+  }, [focus]);
 
   // Restore cached result when endpoint changes
   useEffect(() => {
@@ -284,7 +333,11 @@ function ExplorerScreen({
       }
 
       let body: object | undefined;
-      if (bodyParam.trim()) {
+      const currentBodySchema = (BODY_FIELDS[apiVersion] ?? {})[selectedEndpoint]?.[selectedMethod];
+      if (currentBodySchema && currentBodySchema.length > 0) {
+        const assembled = assembleBody(currentBodySchema, bodyValues);
+        if (Object.keys(assembled).length > 0) body = assembled;
+      } else if (bodyParam.trim()) {
         try { body = JSON.parse(bodyParam); }
         catch { throw new Error("Invalid JSON in Body Params"); }
       }
@@ -351,7 +404,7 @@ function ExplorerScreen({
     } finally {
       setLoading(false);
     }
-  }, [apiKey, subdomain, apiVersion, selectedEndpoint, selectedMethod, needsId, parentIdParam, idParam, queryParam, bodyParam]);
+  }, [apiKey, subdomain, apiVersion, selectedEndpoint, selectedMethod, needsId, parentIdParam, idParam, queryParam, bodyParam, bodyValues]);
 
   useKeyboard((key) => {
     if (editingSubdomain) {
@@ -373,6 +426,14 @@ function ExplorerScreen({
           setQueryInputKey((k: number) => k + 1);
           setAcIdx(0);
         }
+      } else if (focus === "body" && bodySchema && bodySchema.length > 0) {
+        if (key.shift) {
+          if (bodyFieldIdx > 0) setBodyFieldIdx((i: number) => i - 1);
+          else retreatFocus();
+        } else {
+          if (bodyFieldIdx < bodySchema.length - 1) setBodyFieldIdx((i: number) => i + 1);
+          else advanceFocus();
+        }
       } else {
         key.shift ? retreatFocus() : advanceFocus();
       }
@@ -382,6 +443,31 @@ function ExplorerScreen({
     if (focus === "query" && showAutocomplete) {
       if (key.name === "up")   { setAcIdx((i: number) => Math.max(0, i - 1)); return; }
       if (key.name === "down") { setAcIdx((i: number) => Math.min(suggestions.length - 1, i + 1)); return; }
+    }
+
+    if (key.ctrl && key.name === "e" && focus === "body" && !bodySchema) {
+      const tmpFile = join(tmpdir(), `nex-body-${Date.now()}.json`);
+      try {
+        const initial = bodyParam.trim()
+          ? JSON.stringify(JSON.parse(bodyParam), null, 2)
+          : "{}";
+        writeFileSync(tmpFile, initial, "utf8");
+      } catch {
+        writeFileSync(tmpFile, bodyParam || "{}", "utf8");
+      }
+      cliRenderer!.suspend();
+      try {
+        spawnSync(process.env["EDITOR"] ?? process.env["VISUAL"] ?? "vi", [tmpFile], { stdio: "inherit" });
+      } finally {
+        cliRenderer!.resume();
+      }
+      try {
+        const edited = readFileSync(tmpFile, "utf8").trim();
+        setBodyParam(edited);
+        setParamKey((k: number) => k + 1);
+      } catch { /* ignore read errors */ }
+      try { unlinkSync(tmpFile); } catch { /* ignore */ }
+      return;
     }
 
     if (key.ctrl && key.name === "o" && result) {
@@ -431,7 +517,9 @@ function ExplorerScreen({
   const maskedKey =
     apiKey.length > 8 ? `${apiKey.slice(0, 4)}...${apiKey.slice(-4)}` : "••••";
 
-  const inParams = focus === "id" || focus === "query" || focus === "body";
+  const inParams = focus === "id" || focus === "query";
+  const bodyReqFocused = focus === "body" && bodyFieldIdx < reqFields.length;
+  const bodyOptFocused = focus === "body" && bodyFieldIdx >= reqFields.length;
 
   return (
     <box flexDirection="column" flexGrow={1}>
@@ -640,30 +728,92 @@ function ExplorerScreen({
 
             {!showAutocomplete && <box style={{ height: 1, marginBottom: 1 }} />}
 
-            {hasBody && (
-              <>
-                <text fg={focus === "body" ? THEME.accent : THEME.muted}>Body Params (JSON)</text>
-                <box
-                  border
-                  borderStyle="single"
-                  borderColor={focus === "body" ? THEME.accent : THEME.dim}
-                  style={{ height: 3, marginBottom: 1 }}
-                >
-                  <input
-                    key={`body-${paramKey}`}
-                    placeholder='{ "user": { "first_name": "Jane" } }'
-                    focused={focus === "body"}
-                    onInput={setBodyParam}
-                    onSubmit={runCall}
-                  />
-                </box>
-              </>
-            )}
-
             <text fg={THEME.dim}>
               [Ctrl+R] run  [Enter] advance/run  [Tab] switch panel
             </text>
           </box>
+
+          {/* Body params — structured fields or JSON fallback */}
+          {hasBody && reqFields.length > 0 && (
+            <box
+              title=" Body — Required "
+              border borderStyle="single"
+              borderColor={bodyReqFocused ? THEME.accent : THEME.dim}
+              flexDirection="row"
+              style={{ flexShrink: 0, gap: 1, paddingLeft: 1, paddingRight: 1 }}
+            >
+              {reqFields.map((field, localIdx) => {
+                const globalIdx = localIdx;
+                const fkey = field.path.join(".");
+                return (
+                  <BodyInputField
+                    key={fkey}
+                    field={field}
+                    isFocused={focus === "body" && bodyFieldIdx === globalIdx}
+                    value={bodyValues[fkey] ?? ""}
+                    onChange={(v) => setBodyValues((prev) => ({ ...prev, [fkey]: v }))}
+                    onSubmit={() => {
+                      if (globalIdx < (bodySchema?.length ?? 1) - 1) setBodyFieldIdx(globalIdx + 1);
+                      else runCall();
+                    }}
+                    paramKey={paramKey}
+                  />
+                );
+              })}
+            </box>
+          )}
+          {hasBody && optFields.length > 0 && (
+            <box
+              title=" Body — Optional "
+              border borderStyle="single"
+              borderColor={bodyOptFocused ? THEME.accent : THEME.dim}
+              flexDirection="row"
+              style={{ flexShrink: 0, gap: 1, paddingLeft: 1, paddingRight: 1 }}
+            >
+              {optFields.map((field, localIdx) => {
+                const globalIdx = reqFields.length + localIdx;
+                const fkey = field.path.join(".");
+                return (
+                  <BodyInputField
+                    key={fkey}
+                    field={field}
+                    isFocused={focus === "body" && bodyFieldIdx === globalIdx}
+                    value={bodyValues[fkey] ?? ""}
+                    onChange={(v) => setBodyValues((prev) => ({ ...prev, [fkey]: v }))}
+                    onSubmit={() => {
+                      if (globalIdx < (bodySchema?.length ?? 1) - 1) setBodyFieldIdx(globalIdx + 1);
+                      else runCall();
+                    }}
+                    paramKey={paramKey}
+                  />
+                );
+              })}
+            </box>
+          )}
+          {hasBody && !bodySchema && (
+            <box
+              title=" Body Params (JSON) "
+              border borderStyle="single"
+              borderColor={focus === "body" ? THEME.accent : THEME.dim}
+              flexDirection="column"
+              padding={1}
+              style={{ flexShrink: 0, gap: 0 }}
+            >
+              <text fg={focus === "body" ? THEME.accent : THEME.muted}>
+                {focus === "body" ? "JSON  [Ctrl+E] open in editor" : "JSON"}
+              </text>
+              <box border borderStyle="single" borderColor={focus === "body" ? THEME.accent : THEME.dim} style={{ height: 3 }}>
+                <input
+                  key={`body-${paramKey}`}
+                  value={bodyParam}
+                  placeholder='{ "user": { "first_name": "Jane" } }'
+                  focused={focus === "body"}
+                  onInput={setBodyParam}
+                  onSubmit={runCall}
+                />
+              </box>
+            </box>
+          )}
 
           {/* Result panel */}
           <box
