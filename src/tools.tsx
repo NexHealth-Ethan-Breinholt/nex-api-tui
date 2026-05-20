@@ -1,7 +1,7 @@
 import { JSON_SYNTAX_STYLE, THEME } from "./theme.js";
 import { useKeyboard } from "@opentui/react";
 import { NexHealthClient, NexHealthAPIError } from "nexhealth-js-sdk";
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 
 // ─── Shared syntax style ──────────────────────────────────────────────────────
 
@@ -758,6 +758,325 @@ export function AvailableSlotsTool({ apiKey, subdomain, onBackToList, active }: 
   );
 }
 
+// ─── Webhook Listener Tool ────────────────────────────────────────────────────
+
+type LogEntry = { ts: string; method: string; body: string };
+type ListenerState = "idle" | "starting" | "running" | "stopping";
+type WhFocus = "port" | "resourceType" | "event" | "log";
+
+const WH_FOCUS_CYCLE: WhFocus[] = ["port", "resourceType", "event", "log"];
+
+const WH_RESOURCE_TYPES = [
+  "Appointment", "FormRequest", "FormResponse", "Document",
+  "Patient", "PatientInsuranceCoverage", "Procedure", "SyncStatus",
+] as const;
+
+const WH_EVENTS_BY_TYPE: Record<string, string[]> = {
+  Appointment:              ["appointment_insertion", "appointment_created", "appointment_updated", "appointment_requested"],
+  FormRequest:              ["form_request_completed"],
+  FormResponse:             ["form_response_insertion"],
+  Document:                 ["document_insertion"],
+  Patient:                  ["patient_created", "patient_updated"],
+  PatientInsuranceCoverage: ["patient_insurance_created", "patient_insurance_updated"],
+  Procedure:                ["procedure_created", "procedure_updated"],
+  SyncStatus:               ["sync_status_read_change", "sync_status_write_change"],
+};
+
+export function WebhookListenerTool({ apiKey, subdomain, onBackToList, active }: { apiKey: string; subdomain: string; onBackToList: () => void; active: boolean }) {
+  const [focus, setFocus] = useState<WhFocus>("port");
+  const activeFocus = active ? focus : null;
+
+  const [port,       setPort]       = useState("3000");
+  const [rtIdx,      setRtIdx]      = useState(0);
+  const [evIdx,      setEvIdx]      = useState(0);
+  const [state,      setState]      = useState<ListenerState>("idle");
+  const [tunnelUrl,  setTunnelUrl]  = useState<string | null>(null);
+  const [endpointId, setEndpointId] = useState<number | null>(null);
+  const [subId,      setSubId]      = useState<number | null>(null);
+  const [statusMsg,  setStatusMsg]  = useState<string | null>(null);
+  const [logs,       setLogs]       = useState<LogEntry[]>([]);
+
+  const serverRef     = useRef<{ stop(): void } | null>(null);
+  const ngrokRef      = useRef<{ kill(): void } | null>(null);
+  const endpointIdRef = useRef<number | null>(null);
+  const subIdRef      = useRef<number | null>(null);
+  const apiKeyRef     = useRef(apiKey);
+  const subdomainRef  = useRef(subdomain);
+  const addLogRef     = useRef<(e: LogEntry) => void>(() => {});
+
+  apiKeyRef.current    = apiKey;
+  subdomainRef.current = subdomain;
+  addLogRef.current    = (e: LogEntry) => setLogs(prev => [...prev, e]);
+
+  useEffect(() => {
+    return () => {
+      serverRef.current?.stop();
+      ngrokRef.current?.kill();
+      const epId = endpointIdRef.current;
+      const sId  = subIdRef.current;
+      if (epId !== null) {
+        const client = new NexHealthClient({ apiKey: apiKeyRef.current, subdomain: subdomainRef.current || undefined });
+        if (sId !== null) client.v2.webhookSubscriptions.delete(epId, sId).catch(() => {});
+        client.v2.webhookEndpoints.delete(epId).catch(() => {});
+      }
+    };
+  }, []);
+
+  const resourceType = WH_RESOURCE_TYPES[rtIdx] ?? WH_RESOURCE_TYPES[0]!;
+  const events       = WH_EVENTS_BY_TYPE[resourceType] ?? [];
+  const event        = events[evIdx] ?? "";
+
+  const advanceFocus = useCallback(() => {
+    setFocus((f: WhFocus) => WH_FOCUS_CYCLE[(WH_FOCUS_CYCLE.indexOf(f) + 1) % WH_FOCUS_CYCLE.length] ?? "port");
+  }, []);
+
+  const retreatFocus = useCallback(() => {
+    setFocus((f: WhFocus) => {
+      const idx = WH_FOCUS_CYCLE.indexOf(f);
+      if (idx === 0) { onBackToList(); return f; }
+      return WH_FOCUS_CYCLE[idx - 1] ?? "port";
+    });
+  }, [onBackToList]);
+
+  const start = useCallback(async () => {
+    const portNum = parseInt(port, 10);
+    if (isNaN(portNum) || portNum < 1 || portNum > 65535) { setStatusMsg("Invalid port"); return; }
+    if (!event) { setStatusMsg("Select a resource type and event"); return; }
+
+    setState("starting");
+    setStatusMsg("Starting local server…");
+    setLogs([]);
+    setTunnelUrl(null);
+    setEndpointId(null);
+    setSubId(null);
+    endpointIdRef.current = null;
+    subIdRef.current      = null;
+
+    try {
+      // 1. Start local HTTP server
+      serverRef.current = Bun.serve({
+        port: portNum,
+        fetch: async (req: Request) => {
+          const body = await req.text().catch(() => "");
+          addLogRef.current({ ts: new Date().toISOString().replace("T", " ").slice(0, 19), method: req.method, body });
+          return new Response("OK", { status: 200 });
+        },
+      });
+
+      setStatusMsg("Local server up · Starting ngrok…");
+
+      // 2. Spawn ngrok tunnel
+      ngrokRef.current = Bun.spawn(["ngrok", "http", String(portNum)], { stdout: "ignore", stderr: "ignore" });
+
+      // 3. Poll ngrok local API for public tunnel URL
+      let publicUrl: string | null = null;
+      for (let i = 0; i < 30; i++) {
+        await new Promise<void>(r => setTimeout(r, 500));
+        try {
+          const res  = await fetch("http://localhost:4040/api/tunnels");
+          if (!res.ok) continue;
+          const data = await res.json() as { tunnels: Array<{ proto: string; public_url: string; config: { addr: string } }> };
+          const hit  = data.tunnels.find(t => t.proto === "https" && t.config.addr.includes(String(portNum)));
+          if (hit) { publicUrl = hit.public_url; break; }
+        } catch { /* not ready yet */ }
+      }
+      if (!publicUrl) throw new Error("Timed out waiting for ngrok tunnel (15s)");
+
+      setTunnelUrl(publicUrl);
+      setStatusMsg("Tunnel up · Creating webhook endpoint…");
+
+      // 4. Create NexHealth webhook endpoint
+      const client = new NexHealthClient({ apiKey: apiKeyRef.current, subdomain: subdomainRef.current || undefined });
+      const epRes  = await client.v2.webhookEndpoints.create({ target_url: publicUrl, active: true });
+      const epId   = epRes.data.id;
+      endpointIdRef.current = epId;
+      setEndpointId(epId);
+      setStatusMsg("Endpoint created · Creating subscription…");
+
+      // 5. Create webhook subscription
+      const subRes = await client.v2.webhookSubscriptions.create(epId, {
+        resource_type: resourceType as Parameters<typeof client.v2.webhookSubscriptions.create>[1]["resource_type"],
+        event:         event        as Parameters<typeof client.v2.webhookSubscriptions.create>[1]["event"],
+        active:        true,
+      });
+      const sId = subRes.data.id;
+      subIdRef.current = sId;
+      setSubId(sId);
+      setState("running");
+      setStatusMsg(null);
+    } catch (err) {
+      setStatusMsg(err instanceof Error ? err.message : String(err));
+      setState("idle");
+      serverRef.current?.stop();
+      serverRef.current = null;
+      ngrokRef.current?.kill();
+      ngrokRef.current = null;
+    }
+  }, [port, resourceType, event]);
+
+  const stop = useCallback(async () => {
+    setState("stopping");
+    setStatusMsg("Cleaning up…");
+    try {
+      const epId = endpointIdRef.current;
+      const sId  = subIdRef.current;
+      if (epId !== null) {
+        const client = new NexHealthClient({ apiKey: apiKeyRef.current, subdomain: subdomainRef.current || undefined });
+        if (sId !== null) await client.v2.webhookSubscriptions.delete(epId, sId).catch(() => {});
+        await client.v2.webhookEndpoints.delete(epId).catch(() => {});
+      }
+    } catch { /* best effort */ }
+    serverRef.current?.stop();
+    serverRef.current = null;
+    ngrokRef.current?.kill();
+    ngrokRef.current      = null;
+    endpointIdRef.current = null;
+    subIdRef.current      = null;
+    setTunnelUrl(null);
+    setEndpointId(null);
+    setSubId(null);
+    setState("idle");
+    setStatusMsg("Stopped.");
+  }, []);
+
+  useKeyboard((key) => {
+    if (!active) return;
+    if (key.name === "tab" && !key.shift) { advanceFocus(); return; }
+    if (key.name === "tab" &&  key.shift) { retreatFocus(); return; }
+    if (key.ctrl && key.name === "r" && state === "idle")    { start(); return; }
+    if (key.ctrl && key.name === "x" && state === "running") { stop();  return; }
+    if (key.ctrl && key.name === "l") { setLogs([]); return; }
+  });
+
+  const rtOptions = WH_RESOURCE_TYPES.map(r => ({
+    name:        r,
+    description: `${WH_EVENTS_BY_TYPE[r]?.length ?? 0} events`,
+    value:       r,
+  }));
+  const evOptions = events.map(e => ({ name: e, description: "", value: e }));
+
+  const stateColor = state === "running" ? THEME.success : state === "idle" ? THEME.dim : THEME.accent;
+  const stateLabel = { idle: "○ IDLE", starting: "◌ STARTING…", running: "● LISTENING", stopping: "◌ STOPPING…" }[state];
+
+  const isActive = state === "running" || state === "starting" || state === "stopping";
+
+  return (
+    <box flexDirection="column" flexGrow={1}>
+
+      {/* ── Config ─────────────────────────────────────────────────── */}
+      <box
+        title=" Config "
+        border borderStyle="single"
+        borderColor={(activeFocus === "port") ? THEME.accent : THEME.dim}
+        flexDirection="row"
+        style={{ flexShrink: 0, gap: 1, paddingLeft: 1, paddingRight: 1 }}
+      >
+        <box flexDirection="column" style={{ width: 10, flexShrink: 0 }}>
+          <text fg={activeFocus === "port" ? THEME.accent : THEME.muted}>Port</text>
+          <box border borderStyle="single" borderColor={ib(activeFocus === "port")} style={{ height: 3 }}>
+            <input
+              value={port}
+              placeholder="3000"
+              focused={activeFocus === "port"}
+              onInput={setPort}
+              onSubmit={() => setFocus("resourceType")}
+            />
+          </box>
+        </box>
+      </box>
+
+      {/* ── Selectors ─────────────────────────────────────────────── */}
+      <box flexDirection="row" style={{ height: 10, flexShrink: 0 }}>
+
+        <box
+          title=" Resource Type "
+          border borderStyle="single"
+          borderColor={activeFocus === "resourceType" ? THEME.accent : THEME.dim}
+          style={{ width: 30, flexShrink: 0 }}
+        >
+          <select
+            focused={activeFocus === "resourceType"}
+            options={rtOptions}
+            selectedIndex={rtIdx}
+            showDescription
+            showScrollIndicator
+            wrapSelection={false}
+            onChange={(idx) => { setRtIdx(idx); setEvIdx(0); }}
+            textColor={THEME.text}
+            focusedBackgroundColor={THEME.listFocusedBg}
+            selectedBackgroundColor={THEME.listSelectedBg}
+            selectedTextColor={THEME.accent}
+            descriptionColor={THEME.muted}
+            selectedDescriptionColor={THEME.accent}
+            style={{ flexGrow: 1 }}
+          />
+        </box>
+
+        <box
+          title=" Event "
+          border borderStyle="single"
+          borderColor={activeFocus === "event" ? THEME.accent : THEME.dim}
+          style={{ flexGrow: 1 }}
+        >
+          <select
+            focused={activeFocus === "event"}
+            options={evOptions.length > 0 ? evOptions : [{ name: "(none)", description: "", value: "" }]}
+            selectedIndex={evIdx}
+            showDescription={false}
+            showScrollIndicator
+            wrapSelection={false}
+            onChange={(idx) => setEvIdx(idx)}
+            textColor={THEME.text}
+            focusedBackgroundColor={THEME.listFocusedBg}
+            selectedBackgroundColor={THEME.listSelectedBg}
+            selectedTextColor={THEME.accent}
+            style={{ flexGrow: 1 }}
+          />
+        </box>
+
+      </box>
+
+      {/* ── Status bar ────────────────────────────────────────────── */}
+      <box
+        flexDirection="row"
+        style={{ flexShrink: 0, height: 1, paddingLeft: 1, gap: 2 }}
+      >
+        <text fg={stateColor}>{stateLabel}</text>
+        {tunnelUrl  && <text fg={THEME.success}>{tunnelUrl}</text>}
+        {endpointId !== null && <text fg={THEME.muted}>ep:{endpointId}</text>}
+        {subId      !== null && <text fg={THEME.muted}>sub:{subId}</text>}
+        {statusMsg  && <text fg={isActive ? THEME.muted : THEME.error}>{statusMsg}</text>}
+      </box>
+
+      {/* ── Event log ─────────────────────────────────────────────── */}
+      <box
+        title={` Events (${logs.length}) `}
+        border borderStyle="single"
+        borderColor={activeFocus === "log" ? THEME.accent : THEME.dim}
+        flexGrow={1}
+      >
+        <scrollbox focused={activeFocus === "log"} style={{ flexGrow: 1 }}>
+          {logs.length === 0 && (
+            <text fg={THEME.dim}>
+              {state === "running" ? "Waiting for events…" : `[Ctrl+R] start  [Ctrl+X] stop  [Ctrl+L] clear log`}
+            </text>
+          )}
+          {logs.map((entry, i) => {
+            const formatted = (() => { try { return JSON.stringify(JSON.parse(entry.body), null, 2); } catch { return entry.body; } })();
+            return (
+              <box key={i} flexDirection="column" style={{ marginBottom: 1 }}>
+                <text fg={THEME.muted}>{entry.ts}  {entry.method}</text>
+                <code content={formatted || "(empty body)"} filetype="javascript" syntaxStyle={JSON_SYNTAX_STYLE} />
+              </box>
+            );
+          })}
+        </scrollbox>
+      </box>
+
+    </box>
+  );
+}
+
 // ─── Tool registry ────────────────────────────────────────────────────────────
 
 type ToolProps = { apiKey: string; subdomain: string; onBackToList: () => void; active: boolean };
@@ -767,8 +1086,9 @@ type Tool = {
 };
 
 export const TOOLS: Tool[] = [
-  { name: "Book Appointment", component: BookAppointmentTool },
-  { name: "Available Slots",  component: AvailableSlotsTool },
+  { name: "Book Appointment",   component: BookAppointmentTool },
+  { name: "Available Slots",    component: AvailableSlotsTool },
+  { name: "Webhook Listener",   component: WebhookListenerTool },
 ];
 
 // ─── Tools Screen ─────────────────────────────────────────────────────────────
